@@ -13,7 +13,7 @@ import networkx as nx
 
 #%% Functions to extract data
 
-def get_home_data(home_filename,ghi_filename):
+def get_home_data(home_filename,ghi_filename,p=0):
     # Extract solar GHI data
     solar_data = get_solar_irradiance(ghi_filename)
     
@@ -23,9 +23,10 @@ def get_home_data(home_filename,ghi_filename):
     home_rawdata = df_homes.set_index('hid').T.to_dict()
     home_data = {h: {"PV":{},"ESS":{},"SL":{},"TCL":{},"FIXED":{}} \
                  for h in home_rawdata}
-    for h in home_rawdata:
+    rnd = np.random.binomial(n=1,p=p,size=len(home_data))
+    for i,h in enumerate(home_rawdata):
         # PV generator and ESS unit
-        if np.random.binomial(n=1,p=0.0) == 1:
+        if rnd[i] == 1:
             tract = home_rawdata[h]["tract"]
             home_data[h]["PV"]["PV1"] = {"rating":0.7,
                                          "solar":solar_data[tract]}
