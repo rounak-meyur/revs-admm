@@ -25,7 +25,7 @@ def get_home_data(home_filename,ghi_filename):
                  for h in home_rawdata}
     for h in home_rawdata:
         # PV generator and ESS unit
-        if np.random.binomial(n=1,p=0.2) == 1:
+        if np.random.binomial(n=1,p=0.0) == 1:
             tract = home_rawdata[h]["tract"]
             home_data[h]["PV"]["PV1"] = {"rating":0.7,
                                          "solar":solar_data[tract]}

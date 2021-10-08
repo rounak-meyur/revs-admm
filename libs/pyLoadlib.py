@@ -192,5 +192,6 @@ class Load:
             
             # Store optimal schedule in the attribute
             self.p_sch = {d:[p_opt[(d,t)] for t in range(self.w)] for d in devices}
-            return [sum([p_opt[(d,t)] for d in devices+fixed]) for t in range(self.w)]
+            return [sum([p_opt[(d,t)] for d in devices]) + sum([self.p[(d,t)] for d in fixed])\
+                    for t in range(self.w)]
 
