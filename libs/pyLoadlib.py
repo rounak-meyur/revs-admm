@@ -153,8 +153,8 @@ class Load:
             self.model.addConstr(self.z2[t] == grb.min_(self.g[t],0))
         return
     
-    def set_objective(self,cost,feed):
-        obj = grb.quicksum([cost[t]*self.z1[t] for t in range(self.w)]) \
+    def set_objective(self,cost,feed,alpha):
+        obj = grb.quicksum([(cost[t]-alpha[t])*self.z1[t] for t in range(self.w)]) \
         + grb.quicksum([feed*self.z2[t] for t in range(self.w)])
         self.model.setObjective(obj)
         return
@@ -185,8 +185,12 @@ class Load:
             print('No solution found, optimization status = %d' % self.model.Status)
             sys.exit(0)
         else:
+            # Return the device schedules
             fixed = ['base', 'hvac', 'hoth2o']
             devices = [d for dtype in self.data for d in self.data[dtype] if d not in fixed]
             p_opt = {(d,t): self.p[(d,t)].getAttr("x") for d in devices for t in range(self.w)}
-            return {d:[p_opt[(d,t)] for t in range(self.w)] for d in devices}
+            
+            # Store optimal schedule in the attribute
+            self.p_sch = {d:[p_opt[(d,t)] for t in range(self.w)] for d in devices}
+            return [sum([p_opt[(d,t)] for d in devices+fixed]) for t in range(self.w)]
 

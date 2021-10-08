@@ -9,6 +9,7 @@ Description: Functions to extract residence data
 
 import pandas as pd
 import numpy as np
+import networkx as nx
 
 #%% Functions to extract data
 
@@ -33,9 +34,9 @@ def get_home_data(home_filename,ghi_filename):
         
         # Schedulable loads
         if home_rawdata[h]["hasCw"]:
-            home_data[h]["SL"]["Laundry"] = {"rating":1.5,"time":5}
+            home_data[h]["SL"]["Laundry"] = {"rating":1.5,"time":2}
         if home_rawdata[h]["hasDw"]:
-            home_data[h]["SL"]["Dishwasher"] = {"rating":0.9,"time":5}
+            home_data[h]["SL"]["Dishwasher"] = {"rating":0.9,"time":2}
         
         # Fixed loads
         home_data[h]["FIXED"]["base"] = [home_rawdata[h]["base_load_"+str(i+1)] \
@@ -54,3 +55,38 @@ def get_solar_irradiance(filename):
                                              for i in range(24)] \
              for t in range(num_tracts)}
     return solar
+
+
+def GetDistNet(path,code):
+    """
+    Read the txt file containing the edgelist of the generated synthetic network and
+    generates the corresponding networkx graph. The graph has the necessary node and
+    edge attributes.
+    
+    Inputs:
+        path: name of the directory
+        code: substation ID or list of substation IDs
+        
+    Output:
+        graph: networkx graph
+        node attributes of graph:
+            cord: longitude,latitude information of each node
+            label: 'H' for home, 'T' for transformer, 'R' for road node, 
+                    'S' for subs
+            voltage: node voltage in pu
+        edge attributes of graph:
+            label: 'P' for primary, 'S' for secondary, 'E' for feeder lines
+            r: resistance of edge
+            x: reactance of edge
+            geometry: shapely geometry of edge
+            geo_length: length of edge in meters
+            flow: power flowing in kVA through edge
+    """
+    if type(code) == list:
+        graph = nx.Graph()
+        for c in code:
+            g = nx.read_gpickle(path+str(c)+'-dist-net.gpickle')
+            graph = nx.compose(graph,g)
+    else:
+        graph = nx.read_gpickle(path+str(code)+'-dist-net.gpickle')
+    return graph
