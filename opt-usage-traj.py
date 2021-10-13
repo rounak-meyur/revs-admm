@@ -30,14 +30,21 @@ print("Imported modules")
 homepath = inppath + "VA121_20140723.csv"
 solarpath = inppath + "va121_20140723_ghi.csv"
 
-sub = 147793
-
-# sublist = [121143, 121144, 147793, 148717, 148718, 148719, 148720, 148721, 148723,
-#        150353, 150589, 150638, 150692, 150722, 150723, 150724, 150725, 150726, 
-#        150727, 150728]
-
+sub = 150728
 homes = get_home_data(homepath,solarpath,p=0.0)
 dist = GetDistNet(distpath,sub)
+
+# sublist = [121143, 121144, 147793, 148717, 148718, 148719, 148720, 148721, 148723,
+#         150353, 150589, 150638, 150692, 150722, 150723, 150724, 150725, 150726, 
+#         150727, 150728]
+
+# for sub in sublist[1:]:
+#     dist = GetDistNet(distpath,sub)
+#     homelist = [n for n in dist if dist.nodes[n]['label']=='H']
+#     print(len([h for h in homelist if h not in homes]))
+
+
+
 for n in dist:
     dist.nodes[n]['load'] = [0.0]*24
 
@@ -45,24 +52,17 @@ for n in dist:
 COST = [0.073626]*5 + [0.092313]*10 + [0.225525]*3 + [0.092313]*6
 # Feed in tarriff rate for small residence owned rooftop solar installations
 FEED = 0.38
-# sys.exit(0)
+
 #%% Optimize power usage schedule
 
 def compute_power_schedule(net,homes,cost,feed,incentive):
     homelist = [n for n in net if net.nodes[n]['label'] == 'H']
     
-    # Needs to be updated when new residence data arrives
-    other_homes = [h for h in homes if h not in homelist]
-    
     # UPDATE load model for residences
     power_schedule = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
     for hid in homelist:
         # Compute load schedule
-        if hid in homes:
-            L = Load(24,homes[hid])
-        else:
-            rnd_hid = np.random.choice(other_homes)
-            L = Load(24,homes[rnd_hid])
+        L = Load(24,homes[hid])
         L.set_objective(cost, feed, incentive[hid])
         psch = L.solve(hid,grbpath)
         
