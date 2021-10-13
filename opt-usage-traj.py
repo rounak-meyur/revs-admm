@@ -60,6 +60,7 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
     
     # UPDATE load model for residences
     power_schedule = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
+    # load = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
     for hid in homelist:
         # Compute load schedule
         L = Load(24,homes[hid])
@@ -68,6 +69,7 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
         
         # Update load data in network
         power_schedule[hid] = [v for v in psch]
+        # load[hid] = [v for v in L.g]
     return power_schedule
 
 def powerflow(graph, iterdata, 
@@ -125,7 +127,7 @@ def powerflow(graph, iterdata,
 nodelist = [node for node in list(dist.nodes()) if dist.nodes[node]['label'] != 'S']
 ITERDATA = {"alpha":{n:[0.0]*24 for n in nodelist},
             "mu_low":{n:[10.0]*24 for n in nodelist},
-            "mu_up":{n:[10.0]*24 for n in nodelist},
+            "mu_up":{n:[9.0]*24 for n in nodelist},
             "volt": {n:[1.0]*24 for n in nodelist},
             "load":{n:[0.0]*24 for n in nodelist}}
 
@@ -148,21 +150,34 @@ while(k <= 10):
 #%% Plot incentive evolution
 import matplotlib.pyplot as plt
 
-homelist = [n for n in dist if dist.nodes[n]['label'] == 'H' and n in homes]
+homelist = [n for n in dist if dist.nodes[n]['label'] == 'H']
+H = homelist[30:33]
 xarray = np.linspace(1,24,24)
 
 
 fig1 = plt.figure(figsize=(20,16))
-ax1 = fig1.add_subplot(111)
-for m in range(11):
-    ax1.step(xarray,volt_history[m][homelist[0]],label="iter="+str(m+1))
-ax1.legend(ncol=6)
+for m in range(5):
+    ax1 = fig1.add_subplot(5,1,m+1)
+    for i,h in enumerate(H):
+        ax1.step(xarray,volt_history[m][h],label="home="+str(i+1))
+        ax1.legend(ncol=3)
+
 
 fig2 = plt.figure(figsize=(20,16))
-ax2 = fig2.add_subplot(111)
-for m in range(11):
-    ax2.step(xarray,load_history[m][homelist[0]],label="iter="+str(m+1))
-ax2.legend(ncol=6)
+for m in range(5):
+    ax2 = fig2.add_subplot(5,1,m+1)
+    for i,h in enumerate(H):
+        ax2.step(xarray,load_history[m][h],label="home="+str(i+1))
+        ax2.legend(ncol=3)
+
+
+fig3 = plt.figure(figsize=(20,16))
+for m in range(5):
+    ax3 = fig3.add_subplot(5,1,m+1)
+    for i,h in enumerate(H):
+        ax3.step(xarray,alpha_history[m][h],label="home="+str(i+1))
+        ax3.legend(ncol=3)
+
 
 
 
