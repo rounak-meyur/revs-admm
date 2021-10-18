@@ -9,6 +9,7 @@ import sys,os
 import numpy as np
 import networkx as nx
 import pandas as pd
+from math import ceil
 
 workpath = os.getcwd()
 rootpath = os.path.dirname(workpath)
@@ -59,18 +60,21 @@ def get_home_data(home_filename):
     
     for i,h in enumerate(home_rawdata):
         # Schedulable loads
-        # if home_rawdata[h]["hasCw"]==1:
-        #     home_data[h]["SL"]["Laundry"] = {"rating":home_rawdata[h][],
-        #                                      "time":home_rawdata[h][]}
-        # if home_rawdata[h]["hasDw"]==1:
-        #     home_data[h]["SL"]["Dishwasher"] = {"rating":home_rawdata[h][],
-        #                                      "time":home_rawdata[h][]}
         if home_rawdata[h]["hasCw"]==1:
-            home_data[h]["SL"]["laundry"] = {"rating":1.5,
-                                             "time":2}
+            time = home_rawdata[h]["minutesCd"] + home_rawdata[h]["minutesCw"]
+            rating = ((home_rawdata[h]["wattageCd"]*home_rawdata[h]["minutesCd"])\
+                      + (home_rawdata[h]["wattageCw"]*home_rawdata[h]["minutesCw"])) / time
+            home_data[h]["SL"]["laundry"] = {"rating":rating/1000.0,
+                                             "time":ceil(time/60.0)}
         if home_rawdata[h]["hasDw"]==1:
-            home_data[h]["SL"]["dwasher"] = {"rating":0.9,
-                                             "time":2}
+            time = home_rawdata[h]["minutesDw"]
+            rating = home_rawdata[h]["wattageDw"]
+            home_data[h]["SL"]["dwasher"] = {"rating":rating/1000.0,
+                                                "time":ceil(time/60.0)}
+        # if home_rawdata[h]["hasCw"]==1:
+        #     home_data[h]["SL"]["laundry"] = {"rating":1.5,"time":2}
+        # if home_rawdata[h]["hasDw"]==1:
+        #     home_data[h]["SL"]["dwasher"] = {"rating":0.9,"time":2}
         
         # Fixed loads
         home_data[h]["FIXED"]["base"] = [home_rawdata[h]["base_load_"+str(i+1)] \
@@ -93,17 +97,22 @@ def get_home_data(home_filename):
 
 homes = get_home_data(homepath)
 
-homeid = [511210203001808,511210203001800,51121020900345,51121020900348,
-          51121020900349,511210207001180]
+# Store the home data for the following houses with IDs from the toy network
+homeid = [511210207001189,51121020900342,511210203001855,511210207001113,
+          51121020900346,51121021300494]
 homes = {k+1:homes[h] for k,h in enumerate(homeid)}
+
+
 
 #%% Main code
 for n in dist:
     dist.nodes[n]['load'] = [0.0]*24
 
 # Cost profile taken for the off peak plan of AEP
-# COST = [0.073626]*5 + [0.092313]*10 + [0.225525]*3 + [0.092313]*6
-COST = [0.093626]*5 + [0.072313]*10 + [0.225525]*3 + [0.092313]*6
+COST = [0.073626]*5 + [0.092313]*10 + [0.225525]*3 + [0.092313]*6
+# COST = [0.093626]*5 + [0.072313]*10 + [0.225525]*3 + [0.092313]*6
+
+
 # Feed in tarriff rate for small residence owned rooftop solar installations
 FEED = 0.38
 
@@ -113,18 +122,18 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
     homelist = [n for n in net if net.nodes[n]['label'] == 'H']
     
     # UPDATE load model for residences
-    power_schedule = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
-    load = {h:[0.0]*24 for h in homelist}
+    res_load = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
+    sch_load = {}
     for hid in homelist:
         # Compute load schedule
         L = Load(24,homes[hid])
         L.set_objective(cost, feed, incentive[hid])
-        psch = L.solve(hid,grbpath)
+        L.solve(hid,grbpath)
         
         # Update load data in network
-        power_schedule[hid] = [v for v in psch]
-        load[hid] = [v for v in L.p_sch]
-    return power_schedule,load
+        res_load[hid] = [v for v in L.g_opt]
+        sch_load[hid] = {d:L.p_sch[d] for d in L.p_sch}
+    return res_load,sch_load
 
 def powerflow(graph, iterdata, 
               eps = 0.01, phi = 1e-4,
@@ -193,8 +202,10 @@ alpha_history = {}
 volt_history = {}
 load_history = {}
 sl_history = {}
+iterations = 1
+
 k = 0
-while(k <= 10):
+while(k <= 1):
     ITERDATA["load"],ITERDATA["sl"] = compute_power_schedule(dist,homes,
                                               COST,FEED,ITERDATA["alpha"])
     # update 
@@ -210,8 +221,8 @@ while(k <= 10):
 import matplotlib.pyplot as plt
 
 homelist = [n for n in dist if dist.nodes[n]['label'] == 'H']
-xarray = np.linspace(1,24,24)
-
+xarray = np.linspace(0,25,25)
+# xarray = np.arange(24)
 # homelist = [3]
 
 # fig1 = plt.figure(figsize=(20,16))
@@ -242,13 +253,16 @@ xarray = np.linspace(1,24,24)
 #         ax3.legend(ncol=3)
 
 
-
-fig = plt.figure(figsize = (20,16))
-for i,h in enumerate(homelist):
-    ax = fig.add_subplot(6,1,i+1)
-    for m in range(2):
-        ax.step(xarray,sl_history[m][h],label="home="+str(h)+"iter="+str(m+1))
-    ax.legend(ncol=3)
+for device in ['laundry','dwasher']:
+    fig = plt.figure(figsize = (20,16))
+    for i,h in enumerate(homelist):
+        ax = fig.add_subplot(6,1,i+1)
+        if device in homes[h]["SL"]:
+            ax.step(xarray,[0]+homes[h]["ORG"][device],label="original profile")
+            for m in range(2):
+                ax.step(xarray,[0]+sl_history[m][h][device],
+                        label="home="+str(h)+", iter="+str(m+1))
+            ax.legend(ncol=3)
 
 
 
