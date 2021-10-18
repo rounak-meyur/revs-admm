@@ -8,6 +8,7 @@ Created on Wed Oct  6 18:50:32 2021
 import sys,os
 import numpy as np
 import networkx as nx
+import pandas as pd
 
 workpath = os.getcwd()
 rootpath = os.path.dirname(workpath)
@@ -17,6 +18,7 @@ figpath = workpath + "/figs/"
 outpath = workpath + "/out/"
 distpath = rootpath + "/synthetic-distribution/primnet/out/osm-primnet/"
 grbpath = workpath + "/gurobi/"
+homepath = inppath + "VA121_20140723.csv"
 
 
 sys.path.append(libpath)
@@ -35,8 +37,8 @@ ncord = {0:[0,0],1:[1,-1],2:[1,-2],3:[2,-1],4:[2,1],5:[4,-1],6:[4,-2],
          11:[1,0],12:[2,0],13:[3,0],14:[4,0]}
 elabel = {(0,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
-e_r = {(0,11):0.1,(11,12):0.1,(12,13):0.1,(13,14):0.1,
-          (11,1):0.05,(1,2):0.05,(12,3):0.05,(12,4):0.05,(14,5):0.05,(5,6):0.05}
+e_r = {(0,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001,
+          (11,1):0.0005,(1,2):0.0005,(12,3):0.0005,(12,4):0.0005,(14,5):0.0005,(5,6):0.0005}
 
 nx.set_edge_attributes(dist, e_r, 'r')
 nx.set_edge_attributes(dist, elabel, 'label')
@@ -44,35 +46,64 @@ nx.set_edge_attributes(dist, elabel, 'label')
 nx.set_node_attributes(dist, ncord, 'cord')
 nx.set_node_attributes(dist, nlabel, 'label')
 
+
+
 #%% Home definition
-homes = {k:{"FIXED":{},"SL":{"laundry":{"rating":1.5,"time":2},
-                             "dishwasher":{"rating":0.9,"time":2}}
-            } for k in range(1,7)}
 
+def get_home_data(home_filename):
+    # Extract residence device data
+    df_homes = pd.read_csv(home_filename)
+    home_rawdata = df_homes.set_index('hid').T.to_dict()
+    home_data = {h: {"PV":{},"ESS":{},"SL":{},"TCL":{},"FIXED":{},"ORG":{}} \
+                 for h in home_rawdata}
+    
+    for i,h in enumerate(home_rawdata):
+        # Schedulable loads
+        # if home_rawdata[h]["hasCw"]==1:
+        #     home_data[h]["SL"]["Laundry"] = {"rating":home_rawdata[h][],
+        #                                      "time":home_rawdata[h][]}
+        # if home_rawdata[h]["hasDw"]==1:
+        #     home_data[h]["SL"]["Dishwasher"] = {"rating":home_rawdata[h][],
+        #                                      "time":home_rawdata[h][]}
+        if home_rawdata[h]["hasCw"]==1:
+            home_data[h]["SL"]["laundry"] = {"rating":1.5,
+                                             "time":2}
+        if home_rawdata[h]["hasDw"]==1:
+            home_data[h]["SL"]["dwasher"] = {"rating":0.9,
+                                             "time":2}
+        
+        # Fixed loads
+        home_data[h]["FIXED"]["base"] = [home_rawdata[h]["base_load_"+str(i+1)] \
+                                         for i in range(24)]
+        home_data[h]["FIXED"]["hvac"] = [home_rawdata[h]["hvac_kwh_"+str(i+1)] \
+                                         for i in range(24)]
+        home_data[h]["FIXED"]["hoth2o"] = [home_rawdata[h]["hoth2o_kwh_"+str(i+1)] \
+                                         for i in range(24)]
+        
+        # Original Schedulable load profile
+        home_data[h]["ORG"]["dwasher"] = [home_rawdata[h]["dwasher_kwh_"+str(i+1)]\
+                                          for i in range(24)]
+        home_data[h]["ORG"]["laundry"] = [home_rawdata[h]["laundry_kwh_"+str(i+1)]\
+                                          for i in range(24)]
+        home_data[h]["ORG"]["total"] = [home_data[h]["ORG"]["dwasher"][t] \
+            + home_data[h]["ORG"]["laundry"][t] + home_data[h]["FIXED"]["base"][t] \
+                + home_data[h]["FIXED"]["hvac"][t] + home_data[h]["FIXED"]["hoth2o"][t] \
+                    for t in range(24)]
+    return home_data
 
-# Fixed loads
-home_data[h]["FIXED"]["base"] = [home_rawdata[h]["base_load_"+str(i+1)] \
-                                 for i in range(24)]
-home_data[h]["FIXED"]["hvac"] = [home_rawdata[h]["hvac_kwh_"+str(i+1)] \
-                                 for i in range(24)]
-home_data[h]["FIXED"]["hoth2o"] = [home_rawdata[h]["hoth2o_kwh_"+str(i+1)] \
-                                 for i in range(24)]
+homes = get_home_data(homepath)
+
+homeid = [511210203001808,511210203001800,51121020900345,51121020900348,
+          51121020900349,511210207001180]
+homes = {k+1:homes[h] for k,h in enumerate(homeid)}
 
 #%% Main code
-
-
-
-
-homes = get_home_data(homepath,solarpath,p=0.0)
-
-
-
-
 for n in dist:
     dist.nodes[n]['load'] = [0.0]*24
 
 # Cost profile taken for the off peak plan of AEP
-COST = [0.073626]*5 + [0.092313]*10 + [0.225525]*3 + [0.092313]*6
+# COST = [0.073626]*5 + [0.092313]*10 + [0.225525]*3 + [0.092313]*6
+COST = [0.093626]*5 + [0.072313]*10 + [0.225525]*3 + [0.092313]*6
 # Feed in tarriff rate for small residence owned rooftop solar installations
 FEED = 0.38
 
@@ -83,7 +114,7 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
     
     # UPDATE load model for residences
     power_schedule = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
-    # load = {n:[0.0]*24 for n in net if net.nodes[n]['label']!='S'}
+    load = {h:[0.0]*24 for h in homelist}
     for hid in homelist:
         # Compute load schedule
         L = Load(24,homes[hid])
@@ -92,8 +123,8 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
         
         # Update load data in network
         power_schedule[hid] = [v for v in psch]
-        # load[hid] = [v for v in L.g]
-    return power_schedule
+        load[hid] = [v for v in L.p_sch]
+    return power_schedule,load
 
 def powerflow(graph, iterdata, 
               eps = 0.01, phi = 1e-4,
@@ -130,6 +161,8 @@ def powerflow(graph, iterdata,
     M = np.linalg.inv(G)
     V = 1.0 - np.matmul(M,P)
     
+    
+    
     # Update dual 
     mu_low = (1-eps*phi)*mu_low + eps*(vmin - V)
     mu_up = (1-eps*phi)*mu_up + eps*(V - vmax)
@@ -152,15 +185,17 @@ ITERDATA = {"alpha":{n:[0.0]*24 for n in nodelist},
             "mu_low":{n:[10.0]*24 for n in nodelist},
             "mu_up":{n:[9.0]*24 for n in nodelist},
             "volt": {n:[1.0]*24 for n in nodelist},
-            "load":{n:[0.0]*24 for n in nodelist}}
+            "load":{n:[0.0]*24 for n in nodelist},
+            "sl":{n:[0.0]*24 for n in nodelist}}
 
 
 alpha_history = {}
 volt_history = {}
 load_history = {}
+sl_history = {}
 k = 0
 while(k <= 10):
-    ITERDATA["load"] = compute_power_schedule(dist,homes,
+    ITERDATA["load"],ITERDATA["sl"] = compute_power_schedule(dist,homes,
                                               COST,FEED,ITERDATA["alpha"])
     # update 
     ITERDATA = powerflow(dist, ITERDATA)
@@ -168,42 +203,52 @@ while(k <= 10):
     alpha_history[k] = ITERDATA["alpha"]
     volt_history[k] = ITERDATA["volt"]
     load_history[k] = ITERDATA["load"]
+    sl_history[k] = ITERDATA["sl"]
     k = k + 1
 
 #%% Plot incentive evolution
 import matplotlib.pyplot as plt
 
 homelist = [n for n in dist if dist.nodes[n]['label'] == 'H']
-H = homelist[30:33]
 xarray = np.linspace(1,24,24)
 
+# homelist = [3]
 
-fig1 = plt.figure(figsize=(20,16))
-for m in range(5):
-    ax1 = fig1.add_subplot(5,1,m+1)
-    for i,h in enumerate(H):
-        ax1.step(xarray,volt_history[m][h],label="home="+str(i+1))
-        ax1.legend(ncol=3)
-
-
-fig2 = plt.figure(figsize=(20,16))
-for m in range(5):
-    ax2 = fig2.add_subplot(5,1,m+1)
-    for i,h in enumerate(H):
-        ax2.step(xarray,load_history[m][h],label="home="+str(i+1))
-        ax2.legend(ncol=3)
+# fig1 = plt.figure(figsize=(20,16))
+# for m in range(5):
+#     ax1 = fig1.add_subplot(5,1,m+1)
+#     for i,h in enumerate(homelist):
+#         ax1.step(xarray,volt_history[m][h],label="home="+str(h))
+#         ax1.legend(ncol=3)
 
 
-fig3 = plt.figure(figsize=(20,16))
-for m in range(5):
-    ax3 = fig3.add_subplot(5,1,m+1)
-    for i,h in enumerate(H):
-        ax3.step(xarray,alpha_history[m][h],label="home="+str(i+1))
-        ax3.legend(ncol=3)
+# fig2 = plt.figure(figsize=(20,16))
+# ax2 = fig2.add_subplot(6,1,1)
+# for i,h in enumerate(homelist):
+#     ax2.step(xarray,homes[h]["ORG"]["total"],label="home"+str(h))
+#     ax2.legend(ncol=3)
+# for m in range(5):
+#     ax2 = fig2.add_subplot(6,1,m+2)
+#     for i,h in enumerate(homelist):
+#         ax2.step(xarray,load_history[m][h],label="home="+str(h))
+#         ax2.legend(ncol=3)
+
+
+# fig3 = plt.figure(figsize=(20,16))
+# for m in range(5):
+#     ax3 = fig3.add_subplot(5,1,m+1)
+#     for i,h in enumerate(homelist):
+#         ax3.step(xarray,alpha_history[m][h],label="home="+str(h))
+#         ax3.legend(ncol=3)
 
 
 
-
+fig = plt.figure(figsize = (20,16))
+for i,h in enumerate(homelist):
+    ax = fig.add_subplot(6,1,i+1)
+    for m in range(2):
+        ax.step(xarray,sl_history[m][h],label="home="+str(h)+"iter="+str(m+1))
+    ax.legend(ncol=3)
 
 
 

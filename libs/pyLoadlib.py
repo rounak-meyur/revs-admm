@@ -139,7 +139,8 @@ class Load:
     def grid_power(self):
         self.z1 = {}
         self.z2 = {}
-        devices = [d for dtype in self.data for d in self.data[dtype]]
+        devices = [d for dtype in self.data if dtype != "ORG" \
+                   for d in self.data[dtype]]
         for t in range(self.w):
             self.g[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
                                 name="g_{0}".format(t))
@@ -187,7 +188,8 @@ class Load:
         else:
             # Return the device schedules
             fixed = ['base', 'hvac', 'hoth2o']
-            devices = [d for dtype in self.data for d in self.data[dtype] if d not in fixed]
+            devices = [d for dtype in self.data if dtype != "ORG" \
+                       for d in self.data[dtype] if d not in fixed]
             p_opt = {(d,t): self.p[(d,t)].getAttr("x") for d in devices for t in range(self.w)}
             
             # Store optimal schedule in the attribute
