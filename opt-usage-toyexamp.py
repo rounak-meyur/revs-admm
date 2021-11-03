@@ -75,13 +75,12 @@ def get_home_data(home_filename):
                     for t in range(24)]
     return home_data
 
-homes = get_home_data(homepath)
+all_homes = get_home_data(homepath)
 
 # Store the home data for the following houses with IDs from the toy network
 homeid = [511210207001189,51121020900342,511210203001855,511210207001113,
           51121020900346,51121021300494]
-homeid = [511210207001189]*6
-homes = {k+1:homes[h] for k,h in enumerate(homeid)}
+
 
 
 #%% Optimize power usage schedule
@@ -174,7 +173,7 @@ ncord = {0:[0,0],1:[1,-1],2:[1,-2],3:[2,-1],4:[2,1],5:[4,-1],6:[4,-2],
 elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
 
-util = 50
+util = 20
 prefix = "samerate-"+"net5"
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
@@ -192,6 +191,10 @@ for e in edgelist:
 for n in dist:
     dist.nodes[n]['load'] = [0.0]*24
 
+# Home data
+homeid = [511210207001189]*4+[51121021300494]*2
+# homeid = [511210207001189]*6
+homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
 
 #%% Iterative algorithm
 
@@ -208,7 +211,7 @@ alpha_history = {}
 volt_history = {}
 load_history = {}
 sl_history = {}
-iterations = 4
+iterations = 5
 
 k = 0
 while(k <= iterations):
