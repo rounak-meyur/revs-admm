@@ -102,7 +102,7 @@ def compute_power_schedule(net,homes,cost,feed,incentive):
         sch_load[hid] = {d:L.p_sch[d] for d in L.p_sch}
     return res_load,sch_load
 
-def powerflow(graph, iterdata, 
+def powerflow(graph, iterdata,
               eps = 0.01, phi = 1e-4,
               vmin = 0.95, vmax = 1.05):
     """
@@ -120,6 +120,7 @@ def powerflow(graph, iterdata,
     # Load iteration data
     mu_low = np.array([iterdata["mu_low"][n] for n in nodelist])
     mu_up = np.array([iterdata["mu_up"][n] for n in nodelist])
+    V = np.array([iterdata["volt"][n] for n in nodelist])
     
     # Resistance data
     edge_r = []
@@ -135,14 +136,12 @@ def powerflow(graph, iterdata,
     P = np.array([[iterdata['load'][n][t] for t in range(24)] \
                   for n in nodelist])
     M = np.linalg.inv(G)
-    V = 1.0 - np.matmul(M,P)
     
-    
-    
-    # Update dual 
+    # Update dual
     mu_low = (1-eps*phi)*mu_low + eps*(vmin - V)
     mu_up = (1-eps*phi)*mu_up + eps*(V - vmax)
     alpha = np.matmul(M,(mu_low-mu_up))
+    V = 1.0 - np.matmul(M,P)
     
     # Update the iteration data
     iterdata["alpha"] = {n:alpha[i,:] for i,n in enumerate(nodelist)}
@@ -163,21 +162,21 @@ FEED = 0.38
 
 #%% Network definition
 dist = nx.Graph()
-edgelist = [(0,10),(10,11),(11,12),(12,13),(13,14),(11,1),(1,2),(12,3),(12,4),
-            (14,5),(5,6)]
+edgelist = [(0,10),(10,11),(11,12),(12,13),(13,14),(11,1),(5,2),(12,3),(12,4),
+            (14,5),(10,6)]
 dist.add_edges_from(edgelist)
 nlabel = {0:'S',1:'H',2:'H',3:'H',4:'H',5:'H',6:'H',
           10:'R',11:'T',12:'T',13:'R',14:'T'}
 ncord = {0:[0,0],1:[1,-1],2:[1,-2],3:[2,-1],4:[2,1],5:[4,-1],6:[4,-2],
          10:[0.5,0],11:[1,0],12:[2,0],13:[3,0],14:[4,0]}
 elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
-          (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
+          (11,1):'S',(5,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(10,6):'S'}
 
-util = 20
+util = 10
 prefix = "samerate-"+"net5"
 
-e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
-          (11,1):0.0005,(1,2):0.0005,(12,3):0.0005,(12,4):0.0005,(14,5):0.0005,(5,6):0.0005}
+e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001*util,(12,13):0.001,(13,14):0.001,
+          (11,1):0.0005,(5,2):0.0005,(12,3):0.0005,(12,4):0.0005,(14,5):0.0005,(10,6):0.0005}
 
 nx.set_edge_attributes(dist, e_r, 'r')
 nx.set_edge_attributes(dist, elabel, 'label')
@@ -229,7 +228,7 @@ while(k <= iterations):
 #Plot incentive evolution
 import matplotlib.pyplot as plt
 
-homelist = [n for n in dist if dist.nodes[n]['label'] == 'H']
+homelist = sorted([n for n in dist if dist.nodes[n]['label'] == 'H'])
 xarray = np.linspace(0,25,25)
 # xarray = np.arange(24)
 # homelist = [3]
@@ -276,7 +275,15 @@ for i,h in enumerate(homelist):
 fig3.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-incentive'),
              bbox_inches='tight')
 
-
+fig4 = plt.figure(figsize=(20,16))
+for i,h in enumerate(homelist):
+    ax4 = fig4.add_subplot(6,1,i+1)
+    for m in range(iterations):
+        ax4.step(xarray,np.insert(volt_history[m][h],0,1.0),
+                 label="iter="+str(m+1))
+        ax4.legend(ncol=5,prop={'size': 15})
+fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
+             bbox_inches='tight')
 
 
 
