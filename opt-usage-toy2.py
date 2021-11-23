@@ -91,16 +91,9 @@ def compute_Rmat(graph):
                 if graph.nodes[node]['label'] != 'S']
     
     # Resistance data
-    edge_r = []
-    for e in graph.edges:
-        try:
-            edge_r.append(1.0/(graph.edges[e]['r']))
-        except:
-            edge_r.append(1.0/1e-14)
-    R = np.diag(edge_r)
-    G = np.matmul(np.matmul(A,R),A.T)[node_ind,:][:,node_ind]
-    M = np.linalg.inv(G)
-    return M
+    F = np.linalg.inv(A[node_ind,:].T)
+    D = np.diag([graph.edges[e]['r'] for e in graph.edges])
+    return F@D@(F.T)
 
 def compute_power_schedule(net,homes,cost,feed):
     homelist = [n for n in net if net.nodes[n]['label'] == 'H']
@@ -189,7 +182,8 @@ elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
 
 util = 20
-prefix = "samerate-"+"net6"
+prefix = "4low2highload"+"net20"+"pos0"
+# prefix = "alllowload"+"net0"+"pos0"
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
           (11,1):0.0005,(1,2):0.0005,(12,3):0.0005,(12,4):0.0005,(14,5):0.0005,(5,6):0.0005}
@@ -212,8 +206,9 @@ for n in dist:
 R = compute_Rmat(dist)
 
 # Home data
-homeid = [511210207001189]*4+[51121021300494]*2
+homeid = [51121021300494]*4+[511210207001189]*2
 # homeid = [511210207001189]*6
+# homeid = [51121021300494]*6
 homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
 
 #%% Iterative algorithm
@@ -233,6 +228,7 @@ while(k <= iterations):
     powerflow(dist,R)
     
     # update incentive
+    # get_incentive_dual(dist,R)
     get_incentive(dist)
     
     alpha_history[k] = nx.get_node_attributes(dist,"alpha")
@@ -258,6 +254,7 @@ for device in ['laundry','dwasher']:
                 ax.step(xarray,[0]+sl_history[m][h][device],
                         label="iter="+str(m+1))
             ax.legend(ncol=5,prop={'size': 15})
+        ax.set_ylabel("Sch. Load (kW)",fontsize=15)
     fig.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-'+device),
                 bbox_inches='tight')
 
@@ -269,6 +266,7 @@ for i,h in enumerate(homelist):
         ax2.step(xarray,[0]+load_history[m][h],
                  label="iter="+str(m+1))
         ax2.legend(ncol=5,prop={'size': 15})
+    ax2.set_ylabel("Total load (kW)",fontsize=15)
 fig2.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-total'),
              bbox_inches='tight')
 
@@ -280,6 +278,7 @@ for i,h in enumerate(homelist):
         ax3.step(xarray,np.insert(alpha_history[m][h],0,0),
                  label="iter="+str(m+1))
         ax3.legend(ncol=5,prop={'size': 15})
+    ax3.set_ylabel("Incentive signal",fontsize=15)
 fig3.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-incentive'),
              bbox_inches='tight')
 
@@ -290,6 +289,7 @@ for i,h in enumerate(homelist):
         ax4.step(xarray,np.insert(volt_history[m][h],0,1),
                  label="iter="+str(m+1))
         ax4.legend(ncol=5,prop={'size': 15})
+    ax4.set_ylabel("Voltage (pu)",fontsize=15)
 fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
              bbox_inches='tight')
 
