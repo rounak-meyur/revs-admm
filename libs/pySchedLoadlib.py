@@ -188,25 +188,109 @@ class Central:
         
     
     
+class Simple:
+    def __init__(self,graph,cost):
+        self.c = cost
+        self.T = len(cost)
+        self.nodes = [n for n in graph if graph.nodes[n]['label'] != 'S']
+        self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
+        self.N = len(self.nodes)
+        
+        self.model = grb.Model(name="Get Optimal Schedule")
+        self.model.ModelSense = grb.GRB.MINIMIZE
+        self.variables()
+        # self.network(graph)
+        self.set_objective()
+        return
     
+    def variables(self):
+        self.g = {(n,t):self.model.addVar(vtype=grb.GRB.BINARY,
+                                          name="g_{0}_{1}".format(n,t)) \
+                  for n in self.nodes for t in range(self.T)}
+        self.a = {(n,t):self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                          name="a_{0}_{1}".format(n,t)) \
+                  for n in self.nodes for t in range(self.T)}
+        
+        # Add constraints for the variables
+        for n in self.nodes:
+            if n in self.res:
+                self.model.addConstr(
+                    grb.quicksum([self.g[(n,t)] for t in range(self.T)]) == 1)
+            else:
+                for t in range(self.T):
+                    self.model.addConstr(self.g[(n,t)] == 0)
+            for t in range(self.T):
+                self.model.addConstr(self.a[(n,t)] >= 0)
+                self.model.addConstr(self.a[(n,t)] <= self.c[t]*self.g[(n,t)])
+        return
     
+    def network(self,graph,vmin=0.95,vmax=1.05):
+        R = compute_Rmat(graph)
+        vlow = (vmin*vmin - 1)
+        vhigh = (vmax*vmax - 1)
+        
+        for i,_ in enumerate(self.nodes):
+            for t in range(self.T):
+                self.model.addConstr(
+                    -grb.quicksum([R[i,j]*self.g[(m,t)] \
+                                  for j,m in enumerate(self.nodes)]) <= vhigh)
+                self.model.addConstr(
+                    -grb.quicksum([R[i,j]*self.g[(m,t)] \
+                                  for j,m in enumerate(self.nodes)]) >= vlow)
+        return
     
+    def set_objective(self):
+        obj = grb.quicksum([(self.c[t]*self.g[(n,t)]) - self.a[(n,t)] \
+                            for n in self.nodes for t in range(self.T)])
+        self.model.setObjective(obj)
+        return
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    def solve(self,grbpath):
+        # Write the LP problem
+        self.model.write(grbpath+"load-schedule-simple.lp")
+        
+        # Set up solver settings
+        grb.setParam('OutputFlag', 0)
+        grb.setParam('Heuristics', 0)
+        
+        # Open log file
+        logfile = open(grbpath+'gurobi-simple.log', 'w')
+        
+        # Pass data into my callback function
+        self.model._lastiter = -grb.GRB.INFINITY
+        self.model._lastnode = -grb.GRB.INFINITY
+        self.model._logfile = logfile
+        self.model._vars = self.model.getVars()
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Close log file
+        logfile.close()
+        if self.model.SolCount == 0:
+            print('No solution found, optimization status = %d' % self.model.Status)
+            sys.exit(0)
+        else:
+            self.g_opt = {h: [self.g[(h,t)].getAttr("x") \
+                              for t in range(self.T)] for h in self.res}
+            self.a_opt = {h: [self.a[(h,t)].getAttr("x") \
+                              for t in range(self.T)] for h in self.res}
+            return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
