@@ -124,9 +124,9 @@ class Central:
                 self.model.addConstr(
                     -grb.quicksum([R[i,j]*self.g[(m,t)] \
                                   for j,m in enumerate(nodelist)]) <= vhigh)
-                # self.model.addConstr(
-                #     -grb.quicksum([R[i,j]*self.g[(m,t)] \
-                #                   for j,m in enumerate(nodelist)]) >= vlow)
+                self.model.addConstr(
+                    -grb.quicksum([R[i,j]*self.g[(m,t)] \
+                                  for j,m in enumerate(nodelist)]) >= vlow)
         
         for n in nodelist:
             for t in range(self.w):
@@ -199,7 +199,7 @@ class Simple:
         self.model = grb.Model(name="Get Optimal Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
         self.variables()
-        # self.network(graph)
+        self.network(graph)
         self.set_objective()
         return
     
