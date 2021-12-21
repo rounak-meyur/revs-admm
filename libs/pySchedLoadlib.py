@@ -280,7 +280,7 @@ class Simple:
 #%% Distributed Solution Approach
 
 class Home:
-    def __init__(self,cost,homedata,p_est,p_sch,gamma):
+    def __init__(self,cost,homedata,p_est,p_sch,gamma,kappa = 5.0):
         self.c = cost
         self.T = len(cost)
         self.data = homedata
@@ -290,15 +290,7 @@ class Home:
         self.add_SL()
         self.add_fixed()
         self.netload_var()
-        self.set_objective(p_est,p_sch,gamma)
-        return
-    
-    def variables(self):
-        self.g = {t:self.model.addVar(vtype=grb.GRB.BINARY,name="g_{0}".format(t)) \
-                  for t in range(self.T)}
-        
-        # Add constraints for the variables
-        self.model.addConstr(grb.quicksum([self.g[t] for t in range(self.T)]) == 1)
+        self.set_objective(p_est,p_sch,gamma,kappa=kappa)
         return
     
     def netload_var(self):
@@ -354,16 +346,15 @@ class Home:
                 self.p[(d,t)] = fixed_data[d][t]
         return
     
-    def set_objective(self,p_util,p_res,gamma):
+    def set_objective(self,p_util,p_res,gamma,kappa=5.0):
         # main objective
         obj1 = grb.quicksum([(self.c[t]*self.g[t]) for t in range(self.T)])
         
         # admm penalty
-        kappa = 5
         obj2 = (kappa/2.0) * grb.quicksum([self.g[t] * self.g[t] for t in range(self.T)])
         a = [gamma[t] + (kappa/2.0)*(p_util[t] + p_res[t])\
              for t in range(self.T)]
-        obj3 = (kappa/2.0) * grb.quicksum([self.g[t] * a[t] for t in range(self.T)])
+        obj3 = grb.quicksum([self.g[t] * a[t] for t in range(self.T)])
         
         # total objective
         self.model.setObjective(obj1+obj2-obj3)
@@ -408,7 +399,7 @@ class Home:
         
 
 class Utility:
-    def __init__(self,graph,P_util,P_sch,Gamma):
+    def __init__(self,graph,P_util,P_sch,Gamma,kappa=5.0):
         self.nodes = [n for n in graph if graph.nodes[n]['label'] != 'S']
         self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
         self.N = len(self.nodes)
@@ -418,11 +409,11 @@ class Utility:
         self.model.ModelSense = grb.GRB.MINIMIZE
         self.variables()
         self.network(graph)
-        self.set_objective(P_util,P_sch,Gamma)
+        self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
         return
     
     def variables(self):
-        self.g = {(n,t):self.model.addVar(vtype=grb.GRB.BINARY,
+        self.g = {(n,t):self.model.addVar(vtype=grb.GRB.CONTINUOUS,
                                           name="g_{0}_{1}".format(n,t)) \
                   for n in self.res for t in range(self.T)}
         return
@@ -445,17 +436,155 @@ class Utility:
                                   for j in resind]) >= vlow)
         return
     
-    def set_objective(self,p_util,p_res,gamma):
+    def set_objective(self,p_util,p_res,gamma,kappa=5.0):
         # admm penalty
-        kappa = 5
         obj1 = (kappa/2.0) * grb.quicksum([self.g[(n,t)] * self.g[(n,t)] \
                                            for n in self.res for t in range(self.T)])
         obj2 = 0
         for n in self.res:
             a = [gamma[n][t] - (kappa/2.0)*(p_util[n][t] + p_res[n][t])\
                  for t in range(self.T)]
-            obj2 += (kappa/2.0) * grb.quicksum([self.g[(n,t)] * a[t] \
+            obj2 += grb.quicksum([self.g[(n,t)] * a[t] \
                                                 for t in range(self.T)])
+        
+        # total objective
+        self.model.setObjective(obj1+obj2)
+        return
+    
+    def solve(self,grbpath):
+        # Write the LP problem
+        self.model.write(grbpath+"load-schedule-utility.lp")
+        
+        # Set up solver settings
+        grb.setParam('OutputFlag', 0)
+        grb.setParam('Heuristics', 0)
+        
+        # Open log file
+        logfile = open(grbpath+'gurobi-utility.log', 'w')
+        
+        # Pass data into my callback function
+        self.model._lastiter = -grb.GRB.INFINITY
+        self.model._lastnode = -grb.GRB.INFINITY
+        self.model._logfile = logfile
+        self.model._vars = self.model.getVars()
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Close log file
+        logfile.close()
+        if self.model.SolCount == 0:
+            print('No solution found, optimization status = %d' % self.model.Status)
+            sys.exit(0)
+        else:
+            self.g_opt = {h: [self.g[(h,t)].getAttr("x") \
+                              for t in range(self.T)] for h in self.res}
+            return
+
+
+#%% Simple Distributed Problem
+class Agent:
+    def __init__(self,cost,allot,p_util,p_res,gamma,kappa=5.0):
+        self.c = cost
+        self.a = allot
+        self.T = len(cost)
+        
+        
+        self.model = grb.Model(name="Get Optimal Schedule")
+        self.model.ModelSense = grb.GRB.MINIMIZE
+        self.variables()
+        self.set_objective(p_util,p_res,gamma,kappa=kappa)
+        return
+    
+    def variables(self):
+        self.g = {t:self.model.addVar(vtype=grb.GRB.BINARY,name="g_{0}".format(t)) \
+                  for t in range(self.T)}
+        
+        # Add constraints for the variables
+        self.model.addConstr(grb.quicksum([self.g[t] for t in range(self.T)]) == self.a)
+        return
+    
+    def set_objective(self,p_util,p_res,gamma,kappa=5.0):
+        # main objective
+        obj1 = grb.quicksum([(self.c[t]*self.g[t]) for t in range(self.T)])
+        
+        # admm penalty
+        obj2 = (kappa/2.0) * grb.quicksum([self.g[t] * self.g[t] for t in range(self.T)])
+        term = [gamma[t] + ((kappa/2.0)*(p_util[t] + p_res[t])) for t in range(self.T)]
+        obj3 = grb.quicksum([self.g[t] * term[t] for t in range(self.T)])
+        
+        # total objective
+        self.model.setObjective(obj1+obj2-obj3)
+        return
+    
+    def solve(self,grbpath):
+        # Write the LP problem
+        self.model.write(grbpath+"load-schedule-agent.lp")
+        
+        # Set up solver settings
+        grb.setParam('OutputFlag', 0)
+        grb.setParam('Heuristics', 0)
+        
+        # Open log file
+        logfile = open(grbpath+'gurobi-agent.log', 'w')
+        
+        # Pass data into my callback function
+        self.model._lastiter = -grb.GRB.INFINITY
+        self.model._lastnode = -grb.GRB.INFINITY
+        self.model._logfile = logfile
+        self.model._vars = self.model.getVars()
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Close log file
+        logfile.close()
+        if self.model.SolCount == 0:
+            print('No solution found, optimization status = %d' % self.model.Status)
+            sys.exit(0)
+        else:
+            self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
+            return
+        
+
+class Authority:
+    def __init__(self,P_util,P_sch,Gamma,kappa=5.0,max_allot=3.0):
+        self.N = len(Gamma)
+        self.res = [n for n in Gamma]
+        self.T = len(Gamma[self.res[0]])
+        
+        self.model = grb.Model(name="Get Optimal Utility Estimated Schedule")
+        self.model.ModelSense = grb.GRB.MINIMIZE
+        self.variables()
+        self.network(max_allot=max_allot)
+        self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
+        return
+    
+    def variables(self):
+        self.g = {(n,t):self.model.addVar(vtype=grb.GRB.BINARY,
+                                          name="g_{0}_{1}".format(n,t)) \
+                  for n in self.res for t in range(self.T)}
+        return
+    
+    def network(self,max_allot=3):
+        R = np.ones(shape=(self.N,self.N))
+        
+        for i in range(self.N):
+            for t in range(self.T):
+                self.model.addConstr(
+                    grb.quicksum([R[i,j]*self.g[(self.res[j],t)] \
+                                   for j in range(self.N)]) <= max_allot)
+        return
+    
+    def set_objective(self,p_util,p_res,gamma,kappa=5.0):
+        # admm penalty
+        obj1 = (kappa/2.0) * grb.quicksum([self.g[(n,t)] * self.g[(n,t)] \
+                                           for n in self.res for t in range(self.T)])
+        obj2 = 0
+        for n in self.res:
+            term = [gamma[n][t] - (kappa/2.0)*(p_util[n][t] + p_res[n][t])\
+                 for t in range(self.T)]
+            obj2 += grb.quicksum([self.g[(n,t)] * term[t] for t in range(self.T)])
         
         # total objective
         self.model.setObjective(obj1+obj2)
