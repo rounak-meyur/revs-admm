@@ -95,8 +95,8 @@ ncord = {0:[0,0],1:[1,-1],2:[1,-2],3:[2,-1],4:[2,1],5:[4,-1],6:[4,-2],
 elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
 
-util = 1.0
-prefix = "central-control"+"net0"+"pos0"
+util = 3.0
+prefix = "central-control"+"net2"+"pos0"+"volt0"
 # prefix = "alllowload"+"net0"+"pos0"
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
@@ -114,7 +114,7 @@ for e in edgelist:
     dist.edges[e]['geometry'] = LineString((ncord[e[0]],ncord[e[1]]))
 
 # Home data
-homeid = [51121021300494]*3+[511210207001189]*3
+# homeid = [51121021300494]*3+[511210207001189]*3
 # homeid = [511210207001189]*6
 # homeid = [51121021300494]*6
 homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
