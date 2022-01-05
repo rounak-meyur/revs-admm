@@ -95,9 +95,12 @@ ncord = {0:[0,0],1:[1,-1],2:[1,-2],3:[2,-1],4:[2,1],5:[4,-1],6:[4,-2],
 elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
 
-util = 3.0
-prefix = "central-control"+"net2"+"pos0"+"volt0"
-# prefix = "alllowload"+"net0"+"pos0"
+
+util = 10.0
+low=0.9
+high=1.10
+prefix = "agent"+"net1"+"pos0"+"volt2"
+
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
           (11,1):0.0005,(1,2):0.0005,(12,3):0.0005,(12,4):0.0005,(14,5):0.0005,(5,6):0.0005}
@@ -135,11 +138,12 @@ iter_max = 20
 kappa = 5.0
 diff = {}
 
+
 k = 0
 eps = 1
 while(k <= iter_max):
     # solve utility level problem to get estimate
-    U_obj = Utility(dist,P_est[k],P_sch[k],G[k],kappa=kappa)
+    U_obj = Utility(dist,P_est[k],P_sch[k],G[k],kappa=kappa,low=low,high=high)
     U_obj.solve(grbpath)
     P_est[k+1] = U_obj.g_opt
     
@@ -168,7 +172,7 @@ while(k <= iter_max):
 
 
 
-#%% Plot incentive evolution
+##%% Plot incentive evolution
 xarray = np.linspace(0,25,25)
 
 
@@ -237,7 +241,7 @@ for i,h in enumerate(homelist):
     ax4 = fig4.add_subplot(6,1,i+1)
     ax4.step(xarray,[1]+volt[h])
     ax4.set_ylabel("Voltage in pu",fontsize=15)
-fig3.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
+fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
              bbox_inches='tight')
 
 

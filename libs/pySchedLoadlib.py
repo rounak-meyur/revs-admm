@@ -399,7 +399,7 @@ class Home:
         
 
 class Utility:
-    def __init__(self,graph,P_util,P_sch,Gamma,kappa=5.0):
+    def __init__(self,graph,P_util,P_sch,Gamma,kappa=5.0,low=0.95,high=1.05):
         self.nodes = [n for n in graph if graph.nodes[n]['label'] != 'S']
         self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
         self.N = len(self.nodes)
@@ -408,7 +408,7 @@ class Utility:
         self.model = grb.Model(name="Get Optimal Utility Estimated Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
         self.variables()
-        self.network(graph)
+        self.network(graph,vmin=low,vmax=high)
         self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
         return
     
