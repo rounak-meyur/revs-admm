@@ -33,7 +33,7 @@ def get_home_data(home_filename):
     # Extract residence device data
     df_homes = pd.read_csv(home_filename)
     home_rawdata = df_homes.set_index('hid').T.to_dict()
-    home_data = {h: {"PV":{},"ESS":{},"SL":{},"TCL":{},"FIXED":{},"ORG":{}} \
+    home_data = {h: {"PV":{},"EV":{},"SL":{},"TCL":{},"FIXED":{},"ORG":{}} \
                  for h in home_rawdata}
     
     for i,h in enumerate(home_rawdata):
@@ -96,10 +96,10 @@ elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
           (11,1):'S',(1,2):'S',(12,3):'S',(12,4):'S',(14,5):'S',(5,6):'S'}
 
 
-util = 10.0
+util = 1.0
 low=0.9
 high=1.10
-prefix = "agent"+"net1"+"pos0"+"volt2"
+prefix = "agentEV"+"net0"+"pos0"+"volt2"
 
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
@@ -122,6 +122,11 @@ for e in edgelist:
 # homeid = [51121021300494]*6
 homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
 
+
+for h in homes:
+    homes[h]["EV"]["charger"] = {"rating":2.0,"capacity":18.0,"initial":0.3,
+                                 "final":0.9,"start":14,"end":22}
+
 #%% Distributed algorithm
 from pySchedLoadlib import Home,Utility
 
@@ -133,6 +138,7 @@ P_est = {0:{h:[0]*len(COST) for h in homelist}}
 P_sch = {0:{h:[0]*len(COST) for h in homelist}}
 G = {0:{h:[0]*len(COST) for h in homelist}}
 S = {}
+C = {}
 
 iter_max = 20
 kappa = 5.0
@@ -151,11 +157,13 @@ while(k <= iter_max):
     # solve individual agent level problem
     P_sch[k+1] = {}
     S[k+1] = {}
+    C[k+1] = {}
     for h in homelist:
         H_obj = Home(COST,homes[h],P_est[k][h],P_sch[k][h],G[k][h],kappa=kappa)
         H_obj.solve(grbpath)
         P_sch[k+1][h] = H_obj.g_opt
         S[k+1][h] = H_obj.p_sch
+        C[k+1][h] = H_obj.s_opt
     
     
     # update dual variables
@@ -176,11 +184,11 @@ while(k <= iter_max):
 xarray = np.linspace(0,25,25)
 
 
-for device in ['laundry','dwasher']:
+for device in ['laundry','dwasher','charger']:
     fig = plt.figure(figsize = (20,16))
     for i,h in enumerate(homelist):
         ax = fig.add_subplot(6,1,i+1)
-        if device in homes[h]["SL"]:
+        if device in homes[h]["SL"] or device in homes[h]["EV"]:
             ax.step(xarray,[0]+S[k][h][device])
         ax.set_ylabel("Sch. Load (kW)",fontsize=15)
     fig.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-'+device),
@@ -222,6 +230,16 @@ fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-convergence'),
 
 
 
+fig6 = plt.figure(figsize = (20,16))
+for i,h in enumerate(homelist):
+    ax6 = fig6.add_subplot(6,1,i+1)
+    ax6.step(xarray,[0]+C[k][h])
+    ax6.set_ylabel("EV Charge",fontsize=15)
+fig6.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-charge'),
+            bbox_inches='tight')
+
+
+
 # Check voltages
 from pySchedLoadlib import compute_Rmat
 R = compute_Rmat(dist)
@@ -236,12 +254,12 @@ for i,n in enumerate(nodelist):
 
 V = np.sqrt(Z - R@P)
 volt = {h:V[i,:].tolist() for i,h in enumerate(nodelist) if h in nodelist}
-fig4 = plt.figure(figsize=(20,16))
+fig5 = plt.figure(figsize=(20,16))
 for i,h in enumerate(homelist):
-    ax4 = fig4.add_subplot(6,1,i+1)
-    ax4.step(xarray,[1]+volt[h])
-    ax4.set_ylabel("Voltage in pu",fontsize=15)
-fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
+    ax5 = fig5.add_subplot(6,1,i+1)
+    ax5.step(xarray,[1]+volt[h])
+    ax5.set_ylabel("Voltage in pu",fontsize=15)
+fig5.savefig("{}{}.png".format(figpath,prefix+'-toy-usage-voltage'),
              bbox_inches='tight')
 
 

@@ -284,10 +284,13 @@ class Home:
         self.c = cost
         self.T = len(cost)
         self.data = homedata
+        self.p = {}
+        self.s = {}
         
         self.model = grb.Model(name="Get Optimal Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
         self.add_SL()
+        self.add_EV()
         self.add_fixed()
         self.netload_var()
         self.set_objective(p_est,p_sch,gamma,kappa=kappa)
@@ -306,9 +309,40 @@ class Home:
                 self.g[t] == grb.quicksum([self.p[(d,t)] for d in devices]))
         return
     
+    def add_EV(self):
+        e = {}
+        EV_data = self.data["EV"]
+        for d in EV_data:
+            prate = EV_data[d]['rating']
+            qcap = EV_data[d]['capacity']
+            init = EV_data[d]['initial']
+            final = EV_data[d]['final']
+            start = EV_data[d]['start']
+            end = EV_data[d]['end']
+            
+            for t in range(self.T):
+                self.s[(d,t)] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
+                                              ub=1.0,name="s_{0}_{1}".format(d,t))
+                e[(d,t)] = self.model.addVar(vtype=grb.GRB.BINARY,
+                                             name="e_{0}_{1}".format(d,t))
+                self.p[(d,t)] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                               name="p_{0}_{1}".format(d,t))
+            
+            for t in range(self.T):
+                self.model.addConstr(self.p[(d,t)] == e[(d,t)]*prate)
+                if t == 0:
+                    self.model.addConstr(self.s[(d,t)] == init)
+                else:
+                    self.model.addConstr(self.s[(d,t)] == self.s[(d,t-1)] \
+                                         + self.p[(d,t)]/qcap)
+                if t >= end:
+                    self.model.addConstr(self.s[(d,t)] >= final)
+                if (t<=start) or (t>end):
+                    self.model.addConstr(e[(d,t)] == 0)
+        return
+    
     def add_SL(self):
         u = {}
-        self.p = {}
         SL_data = self.data["SL"]
         for d in SL_data:
             # Schedulable Load parameters
@@ -395,6 +429,11 @@ class Home:
             # Store optimal schedule in the attribute
             self.p_sch = {d: [p_opt[(d,t)] for t in range(self.T)] for d in devices}
             self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
+            if 'charger' in devices:
+                self.s_opt = [self.s[("charger",t)].getAttr("x") \
+                              for t in range(self.T)]
+            else:
+                self.s_opt = []
             return
         
 
