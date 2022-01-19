@@ -38,7 +38,7 @@ def get_home_data(home_filename):
     home_data = {h: {"PV":{},"ESS":{},"SL":{},"TCL":{},"FIXED":{},"ORG":{}} \
                  for h in home_rawdata}
     
-    for i,h in enumerate(home_rawdata):
+    for _,h in enumerate(home_rawdata):
         # Schedulable loads
         if home_rawdata[h]["hasCw"]==1:
             time = home_rawdata[h]["minutesCd"] + home_rawdata[h]["minutesCw"]
