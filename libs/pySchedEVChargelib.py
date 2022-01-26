@@ -62,34 +62,43 @@ class Home:
         return
     
     def add_EV(self):
-        e = {}
-        EV_data = self.data["EV"]
-        prate = EV_data['rating']
-        qcap = EV_data['capacity']
-        init = EV_data['initial']
-        final = EV_data['final']
-        start = EV_data['start']
-        end = EV_data['end']
+        if self.data["EV"] == {}:
+            for t in range(self.T):
+                self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                              name="p_{0}".format(t))
+                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                              name="s_{0}".format(t))
+                self.model.addConstr(self.p[t] == 0)
+                self.model.addConstr(self.s[t] == 0)
+        else:
+            e = {}
+            EV_data = self.data["EV"]
+            prate = EV_data['rating']
+            qcap = EV_data['capacity']
+            init = EV_data['initial']
+            final = EV_data['final']
+            start = EV_data['start']
+            end = EV_data['end']
+                
+            for t in range(self.T):
+                # Add the variables
+                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
+                                              ub=1.0,name="s_{0}".format(t))
+                e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
+                                             name="e_{0}".format(t))
+                self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                               name="p_{0}".format(t))
             
-        for t in range(self.T):
-            # Add the variables
-            self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
-                                          ub=1.0,name="s_{0}".format(t))
-            e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
-                                         name="e_{0}".format(t))
-            self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
-                                           name="p_{0}".format(t))
-        
-            # Add the constraints
-            self.model.addConstr(self.p[t] == e[t]*prate)
-            if t == 0:
-                self.model.addConstr(self.s[t] == init)
-            else:
-                self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t]/qcap))
-            if t >= end:
-                self.model.addConstr(self.s[t] >= final)
-            if (t<=start) or (t>end):
-                self.model.addConstr(e[t] == 0)
+                # Add the constraints
+                self.model.addConstr(self.p[t] == e[t]*prate)
+                if t == 0:
+                    self.model.addConstr(self.s[t] == init)
+                else:
+                    self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t]/qcap))
+                if t >= end:
+                    self.model.addConstr(self.s[t] >= final)
+                if (t<=start) or (t>end):
+                    self.model.addConstr(e[t] == 0)
         return
     
     def set_objective(self,p_util,p_res,gamma,kappa=5.0):
@@ -219,4 +228,100 @@ class Utility:
         else:
             self.g_opt = {h: [self.g[(h,t)].getAttr("x") \
                               for t in range(self.T)] for h in self.res}
+            return
+
+
+#%% Individual Residence Problem
+class Residence:
+    def __init__(self,cost,homedata):
+        self.c = cost
+        self.T = len(cost)
+        self.data = homedata
+        self.p = {}
+        self.g = {}
+        self.s = {}
+        
+        self.model = grb.Model(name="Get Optimal Schedule")
+        self.model.ModelSense = grb.GRB.MINIMIZE
+        self.add_EV()
+        self.netload_var()
+        self.set_objective()
+        return
+    
+    def netload_var(self):
+        for t in range(self.T):
+            self.g[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                          name="g_{0}".format(t))
+            self.model.addConstr(
+                self.g[t] == self.p[t] + self.data["LOAD"][t])
+        return
+    
+    def add_EV(self):
+        e = {}
+        EV_data = self.data["EV"]
+        prate = EV_data['rating']
+        qcap = EV_data['capacity']
+        init = EV_data['initial']
+        final = EV_data['final']
+        start = EV_data['start']
+        end = EV_data['end']
+            
+        for t in range(self.T):
+            # Add the variables
+            self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
+                                          ub=1.0,name="s_{0}".format(t))
+            e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
+                                         name="e_{0}".format(t))
+            self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                           name="p_{0}".format(t))
+        
+            # Add the constraints
+            self.model.addConstr(self.p[t] == e[t]*prate)
+            if t == 0:
+                self.model.addConstr(self.s[t] == init)
+            else:
+                self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t]/qcap))
+            if t >= end:
+                self.model.addConstr(self.s[t] >= final)
+            if (t<=start) or (t>end):
+                self.model.addConstr(e[t] == 0)
+        return
+    
+    def set_objective(self):
+        # main objective
+        obj1 = grb.quicksum([(self.c[t]*self.g[t]) for t in range(self.T)])
+        
+        # total objective
+        self.model.setObjective(obj1)
+        return
+    
+    def solve(self,grbpath):
+        # Write the LP problem
+        self.model.write(grbpath+"ev-schedule-agent.lp")
+        
+        # Set up solver settings
+        grb.setParam('OutputFlag', 0)
+        grb.setParam('Heuristics', 0)
+        
+        # Open log file
+        logfile = open(grbpath+'gurobi-ev-agent.log', 'w')
+        
+        # Pass data into my callback function
+        self.model._lastiter = -grb.GRB.INFINITY
+        self.model._lastnode = -grb.GRB.INFINITY
+        self.model._logfile = logfile
+        self.model._vars = self.model.getVars()
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Close log file
+        logfile.close()
+        if self.model.SolCount == 0:
+            print('No solution found, optimization status = %d' % self.model.Status)
+            sys.exit(0)
+        else:
+            self.p_opt = [self.p[t].getAttr("x") for t in range(self.T)]
+            self.s_opt = [self.s[t].getAttr("x") for t in range(self.T)]
+            self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
             return

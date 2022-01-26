@@ -48,7 +48,8 @@ def get_home_data(home_filename):
                                 for t in range(24)]
         
         # Add EV charger ratings
-        home_data[h]["EV"] = {}
+        home_data[h]["EV"] = {"rating":2.0,"capacity":18.0,"initial":0.3,
+                                     "final":0.9,"start":14,"end":22}
     return home_data
 
 all_homes = get_home_data(homepath)
@@ -77,8 +78,7 @@ elabel = {(0,10):'E',(10,11):'P',(11,12):'P',(12,13):'P',(13,14):'P',
 util = 1.0
 low=0.95
 high=1.05
-num = 6
-prefix = "agentEV"+"home"+str(num)
+prefix = "indEV"+"net0"+"pos0"+"volt0"
 
 
 e_r = {(0,10):1e-12, (10,11):0.001,(11,12):0.001,(12,13):0.001,(13,14):0.001*util,
@@ -100,66 +100,28 @@ for e in edgelist:
 # homeid = [511210207001189]*6
 # homeid = [51121021300494]*6
 homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
-count = 0
-for h in homes:
-    count = count+1
-    if count <= num:
-        homes[h]["EV"] = {"rating":4.0,"capacity":18.0,"initial":0.3,
-                                     "final":0.9,"start":14,"end":22}
-    else:
-        homes[h]["EV"] = {}
 
 #%% Distributed algorithm
-from pySchedEVChargelib import Home,Utility
+from pySchedEVChargelib import Residence
 
 homelist = sorted([n for n in dist if dist.nodes[n]['label'] == 'H'])
 
 
 
-P_est = {0:{h:[0]*len(COST) for h in homelist}}
-P_sch = {0:{h:[0]*len(COST) for h in homelist}}
-G = {0:{h:[0]*len(COST) for h in homelist}}
+P_sch = {}
 S = {}
 C = {}
 
-iter_max = 20
-kappa = 5.0
-diff = {}
 
 
-k = 0
-eps = 1
-while(k <= iter_max):
-    # solve utility level problem to get estimate
-    U_obj = Utility(dist,P_est[k],P_sch[k],G[k],kappa=kappa,low=low,high=high)
-    U_obj.solve(grbpath)
-    P_est[k+1] = U_obj.g_opt
-    
-    
-    # solve individual agent level problem
-    P_sch[k+1] = {}
-    S[k+1] = {}
-    C[k+1] = {}
-    for h in homelist:
-        H_obj = Home(COST,homes[h],P_est[k][h],P_sch[k][h],G[k][h],kappa=kappa)
-        H_obj.solve(grbpath)
-        P_sch[k+1][h] = H_obj.g_opt
-        S[k+1][h] = H_obj.p_opt
-        C[k+1][h] = H_obj.s_opt
-        
-    
-    
-    # update dual variables
-    G[k+1] = {}
-    diff[k+1] = {}
-    for h in homelist:
-        check = [(P_est[k+1][h][t] - P_sch[k+1][h][t]) for t in range(len(COST))]
-        G[k+1][h] = [G[k][h][t] + (kappa/2) * check[t] for t in range(len(COST))]
-        diff[k+1][h] = np.linalg.norm(np.array(check))/len(COST)
-    
-    
-    
-    k = k + 1
+
+# solve individual agent level problem
+for h in homelist:
+    H_obj = Residence(COST,homes[h])
+    H_obj.solve(grbpath)
+    P_sch[h] = H_obj.g_opt
+    S[h] = H_obj.p_opt
+    C[h] = H_obj.s_opt
 
 
 
@@ -171,7 +133,7 @@ xarray = np.linspace(0,25,25)
 fig1 = plt.figure(figsize = (20,16))
 for i,h in enumerate(homelist):
     ax1 = fig1.add_subplot(6,1,i+1)
-    ax1.step(xarray,[0]+S[k][h])
+    ax1.step(xarray,[0]+S[h])
     ax1.set_ylabel("EV Charging (kW)",fontsize=15)
 fig1.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-load'),
             bbox_inches='tight')
@@ -181,7 +143,7 @@ fig1.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-load'),
 fig2 = plt.figure(figsize=(20,16))
 for i,h in enumerate(homelist):
     ax2 = fig2.add_subplot(6,1,i+1)
-    ax2.step(xarray,[0]+P_sch[k][h])
+    ax2.step(xarray,[0]+P_sch[h])
     ax2.set_ylabel("Total load (kW)",fontsize=15)
 fig2.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-total'),
              bbox_inches='tight')
@@ -195,27 +157,14 @@ for i,h in enumerate(homelist):
 fig3.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-other'),
              bbox_inches='tight')
 
-xtix = range(1,k+1)
-fig4 = plt.figure(figsize=(20,16))
-ax4 = fig4.add_subplot(1,1,1)
-for h in homelist:
-    ax4.plot(xtix,[diff[k][h] for k in xtix],
-             label="Agent "+str(h))
-ax4.set_ylabel("Difference",fontsize=25)
-ax4.set_xlabel("Iterations",fontsize=25)
-ax4.legend(loc='best',ncol=1,prop={'size': 25})
-ax4.set_xticks(list(range(0,21,5)))
-ax4.tick_params(axis='y', labelsize=25)
-ax4.tick_params(axis='x', labelsize=25)
-fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-convergence'),
-              bbox_inches='tight')
+
 
 
 
 fig6 = plt.figure(figsize = (20,16))
 for i,h in enumerate(homelist):
     ax6 = fig6.add_subplot(6,1,i+1)
-    ax6.step(xarray,[0]+C[k][h])
+    ax6.step(xarray,[0]+C[h])
     ax6.set_ylabel("EV Charge",fontsize=15)
 fig6.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-charge'),
             bbox_inches='tight')
@@ -232,7 +181,7 @@ P = np.zeros(shape=(len(nodelist),len(COST)))
 Z = np.ones(shape=(len(nodelist),len(COST)))
 for i,n in enumerate(nodelist):
     if n in homelist:
-        P[i,:] = np.array(P_sch[k][n])
+        P[i,:] = np.array(P_sch[n])
 
 V = np.sqrt(Z - R@P)
 volt = {h:V[i,:].tolist() for i,h in enumerate(nodelist) if h in nodelist}
