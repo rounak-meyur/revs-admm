@@ -2,7 +2,7 @@
 """
 Created on Wed Jan 19 10:27:37 2022
 
-@author: rm5nz
+Author: Rounak Meyur
 """
 
 import sys
@@ -62,15 +62,19 @@ class Home:
         return
     
     def add_EV(self):
+        
         if self.data["EV"] == {}:
+            # Variables for no EV in residence
             for t in range(self.T):
                 self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
                                               name="p_{0}".format(t))
+                self.model.addConstr(self.p[t] == 0)
+            for t in range(self.T+1):
                 self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
                                               name="s_{0}".format(t))
-                self.model.addConstr(self.p[t] == 0)
                 self.model.addConstr(self.s[t] == 0)
         else:
+            # Variables for EV in residence
             e = {}
             EV_data = self.data["EV"]
             prate = EV_data['rating']
@@ -79,26 +83,28 @@ class Home:
             final = EV_data['final']
             start = EV_data['start']
             end = EV_data['end']
-                
+            
+            # Power consumption variables and constraints
             for t in range(self.T):
-                # Add the variables
-                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
-                                              ub=1.0,name="s_{0}".format(t))
                 e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
                                              name="e_{0}".format(t))
                 self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
                                                name="p_{0}".format(t))
-            
-                # Add the constraints
                 self.model.addConstr(self.p[t] == e[t]*prate)
+                if (t<start) or (t>=end):
+                    self.model.addConstr(e[t] == 0)
+            
+            # SOC variables and constraints
+            for t in range(self.T+1):
+                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
+                                              ub=1.0,name="s_{0}".format(t))
+            
                 if t == 0:
                     self.model.addConstr(self.s[t] == init)
                 else:
-                    self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t]/qcap))
+                    self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t-1]/qcap))
                 if t >= end:
                     self.model.addConstr(self.s[t] >= final)
-                if (t<=start) or (t>end):
-                    self.model.addConstr(e[t] == 0)
         return
     
     def set_objective(self,p_util,p_res,gamma,kappa=5.0):
@@ -142,59 +148,52 @@ class Home:
             sys.exit(0)
         else:
             self.p_opt = [self.p[t].getAttr("x") for t in range(self.T)]
-            self.s_opt = [self.s[t].getAttr("x") for t in range(self.T)]
+            self.s_opt = [self.s[t].getAttr("x") for t in range(self.T+1)]
             self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
             return
         
 
 class Utility:
     def __init__(self,graph,P_util,P_sch,Gamma,kappa=5.0,low=0.95,high=1.05):
-        self.nodes = [n for n in graph if graph.nodes[n]['label'] != 'S']
+        self.nodes = [n for n in graph.nodes if graph.nodes[n]['label'] != 'S']
         self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
         self.N = len(self.nodes)
         self.T = len(Gamma[self.res[0]])
         
         self.model = grb.Model(name="Get Optimal Utility Estimated Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
-        self.variables()
+        self.variables(P_sch)
         self.network(graph,vmin=low,vmax=high)
         self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
         return
     
-    def variables(self):
-        self.g = {(n,t):self.model.addVar(vtype=grb.GRB.CONTINUOUS,
-                                          name="g_{0}_{1}".format(n,t)) \
-                  for n in self.res for t in range(self.T)}
+    def variables(self,p_res):
+        self.g = self.model.addMVar(shape=(len(self.res),self.T),
+                                    name = "g",vtype=grb.GRB.CONTINUOUS)
         return
     
     def network(self,graph,vmin=0.95,vmax=1.05):
         R = compute_Rmat(graph)
-        vlow = (vmin*vmin - 1)
-        vhigh = (vmax*vmax - 1)
+        vlow = (vmin*vmin - 1) * np.ones(shape=(len(self.res),self.T))
+        vhigh = (vmax*vmax - 1) * np.ones(shape=(len(self.res),self.T))
         
-        # Indices of residence nodes in the R matrix
-        resind = [i for i,n in enumerate(self.nodes) if n in self.res]
+        resind = [self.nodes.index(n) for n in self.res]
+        R_res = R[resind,:][:,resind]
         
-        for i in resind:
-            for t in range(self.T):
-                self.model.addConstr(
-                    -grb.quicksum([R[i,j]*self.g[(self.nodes[j],t)] \
-                                   for j in resind]) <= vhigh)
-                self.model.addConstr(
-                    -grb.quicksum([R[i,j]*self.g[(self.nodes[j],t)] \
-                                  for j in resind]) >= vlow)
+        for t in range(self.T):
+            self.model.addConstr(R_res@self.g[:,t] <= vhigh[:,t])
+            self.model.addConstr(R_res@self.g[:,t] >= vlow[:,t])
         return
     
     def set_objective(self,p_util,p_res,gamma,kappa=5.0):
         # admm penalty
-        obj1 = (kappa/2.0) * grb.quicksum([self.g[(n,t)] * self.g[(n,t)] \
-                                           for n in self.res for t in range(self.T)])
+        obj1 = 0
         obj2 = 0
-        for n in self.res:
-            a = [gamma[n][t] - (kappa/2.0)*(p_util[n][t] + p_res[n][t])\
-                 for t in range(self.T)]
-            obj2 += grb.quicksum([self.g[(n,t)] * a[t] \
-                                                for t in range(self.T)])
+        for i,n in enumerate(self.res):
+            obj1 += (kappa/2.0) * (self.g[i,:] @ self.g[i,:])
+            a = np.array([gamma[n][t] - (kappa/2.0)*(p_util[n][t] + p_res[n][t])\
+                 for t in range(self.T)])
+            obj2 += self.g[i,:] @ a
         
         # total objective
         self.model.setObjective(obj1+obj2)
@@ -226,8 +225,8 @@ class Utility:
             print('No solution found, optimization status = %d' % self.model.Status)
             sys.exit(0)
         else:
-            self.g_opt = {h: [self.g[(h,t)].getAttr("x") \
-                              for t in range(self.T)] for h in self.res}
+            G = self.g.getAttr("x").tolist()
+            self.g_opt = {h: G[i] for i,h in enumerate(self.res)}
             return
 
 
@@ -257,34 +256,49 @@ class Residence:
         return
     
     def add_EV(self):
-        e = {}
-        EV_data = self.data["EV"]
-        prate = EV_data['rating']
-        qcap = EV_data['capacity']
-        init = EV_data['initial']
-        final = EV_data['final']
-        start = EV_data['start']
-        end = EV_data['end']
-            
-        for t in range(self.T):
-            # Add the variables
-            self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
-                                          ub=1.0,name="s_{0}".format(t))
-            e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
-                                         name="e_{0}".format(t))
-            self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
-                                           name="p_{0}".format(t))
         
-            # Add the constraints
-            self.model.addConstr(self.p[t] == e[t]*prate)
-            if t == 0:
-                self.model.addConstr(self.s[t] == init)
-            else:
-                self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t]/qcap))
-            if t >= end:
-                self.model.addConstr(self.s[t] >= final)
-            if (t<=start) or (t>end):
-                self.model.addConstr(e[t] == 0)
+        if self.data["EV"] == {}:
+            # Variables for no EV in residence
+            for t in range(self.T):
+                self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                              name="p_{0}".format(t))
+                self.model.addConstr(self.p[t] == 0)
+            for t in range(self.T+1):
+                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                              name="s_{0}".format(t))
+                self.model.addConstr(self.s[t] == 0)
+        else:
+            # Variables for EV in residence
+            e = {}
+            EV_data = self.data["EV"]
+            prate = EV_data['rating']
+            qcap = EV_data['capacity']
+            init = EV_data['initial']
+            final = EV_data['final']
+            start = EV_data['start']
+            end = EV_data['end']
+            
+            # Power consumption variables and constraints
+            for t in range(self.T):
+                e[t] = self.model.addVar(vtype=grb.GRB.BINARY,
+                                             name="e_{0}".format(t))
+                self.p[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS,
+                                               name="p_{0}".format(t))
+                self.model.addConstr(self.p[t] == e[t]*prate)
+                if (t<start) or (t>=end):
+                    self.model.addConstr(e[t] == 0)
+            
+            # SOC variables and constraints
+            for t in range(self.T+1):
+                self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
+                                              ub=1.0,name="s_{0}".format(t))
+            
+                if t == 0:
+                    self.model.addConstr(self.s[t] == init)
+                else:
+                    self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t-1]/qcap))
+                if t >= end:
+                    self.model.addConstr(self.s[t] >= final)
         return
     
     def set_objective(self):
@@ -322,6 +336,6 @@ class Residence:
             sys.exit(0)
         else:
             self.p_opt = [self.p[t].getAttr("x") for t in range(self.T)]
-            self.s_opt = [self.s[t].getAttr("x") for t in range(self.T)]
+            self.s_opt = [self.s[t].getAttr("x") for t in range(self.T+1)]
             self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
             return

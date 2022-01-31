@@ -9,14 +9,13 @@ import sys,os
 import numpy as np
 import networkx as nx
 import pandas as pd
-from math import ceil
 from shapely.geometry import LineString
 import matplotlib.pyplot as plt
 
 workpath = os.getcwd()
 rootpath = os.path.dirname(workpath)
 libpath = workpath + "/libs/"
-inppath = workpath + "/input/"
+inppath = workpath + "/input/load/"
 figpath = workpath + "/figs/"
 outpath = workpath + "/out/"
 distpath = rootpath + "/synthetic-distribution/primnet/out/osm-primnet/"
@@ -103,9 +102,10 @@ homes = {k+1:all_homes[h] for k,h in enumerate(homeid)}
 count = 0
 for h in homes:
     count = count+1
+    homes[h]["LOAD"] = np.roll(homes[h]["LOAD"],-6)
     if count <= num:
-        homes[h]["EV"] = {"rating":4.0,"capacity":18.0,"initial":0.3,
-                                     "final":0.9,"start":14,"end":22}
+        homes[h]["EV"] = {"rating":2.0,"capacity":18.0,"initial":0.3,
+                                     "final":0.9,"start":11,"end":23}
     else:
         homes[h]["EV"] = {}
 
@@ -190,7 +190,7 @@ fig2.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-total'),
 fig3 = plt.figure(figsize=(20,16))
 for i,h in enumerate(homelist):
     ax3 = fig3.add_subplot(6,1,i+1)
-    ax3.step(xarray,[0]+homes[h]["LOAD"])
+    ax3.step(xarray,[0]+homes[h]["LOAD"].tolist())
     ax3.set_ylabel("Other Load (kW)",fontsize=15)
 fig3.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-other'),
              bbox_inches='tight')
@@ -215,7 +215,7 @@ fig4.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-convergence'),
 fig6 = plt.figure(figsize = (20,16))
 for i,h in enumerate(homelist):
     ax6 = fig6.add_subplot(6,1,i+1)
-    ax6.step(xarray,[0]+C[k][h])
+    ax6.step(xarray,C[k][h])
     ax6.set_ylabel("EV Charge",fontsize=15)
 fig6.savefig("{}{}.png".format(figpath,prefix+'-toy-EV-charge'),
             bbox_inches='tight')
