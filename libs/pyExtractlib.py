@@ -58,6 +58,18 @@ def get_solar_irradiance(filename):
     return solar
 
 
+def get_home_load(home_filename,shift=6):
+    # Extract residence device data
+    df_homes = pd.read_csv(home_filename)
+    home_rawdata = df_homes.set_index('hid').T.to_dict()
+    home_data = {h: {} for h in home_rawdata}
+    
+    for h in home_rawdata:
+        net_load = [1e-3*home_rawdata[h]["hour"+str(i+1)] for i in range(24)]
+        home_data[h]["LOAD"] = np.roll(net_load,-shift).tolist()
+    return home_data
+
+
 def GetDistNet(path,code):
     """
     Read the txt file containing the edgelist of the generated synthetic network and

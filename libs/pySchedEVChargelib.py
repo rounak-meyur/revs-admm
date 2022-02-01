@@ -154,7 +154,8 @@ class Home:
         
 
 class Utility:
-    def __init__(self,graph,P_util,P_sch,Gamma,kappa=5.0,low=0.95,high=1.05):
+    def __init__(self,graph,P_util,P_sch,Gamma,
+                 kappa=5.0,vset=1.0,low=0.95,high=1.05):
         self.nodes = [n for n in graph.nodes if graph.nodes[n]['label'] != 'S']
         self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
         self.N = len(self.nodes)
@@ -163,7 +164,7 @@ class Utility:
         self.model = grb.Model(name="Get Optimal Utility Estimated Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
         self.variables(P_sch)
-        self.network(graph,vmin=low,vmax=high)
+        self.network(graph,vset=vset,vmin=low,vmax=high)
         self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
         return
     
@@ -172,10 +173,10 @@ class Utility:
                                     name = "g",vtype=grb.GRB.CONTINUOUS)
         return
     
-    def network(self,graph,vmin=0.95,vmax=1.05):
+    def network(self,graph,vset=1.0,vmin=0.95,vmax=1.05):
         R = compute_Rmat(graph)
-        vlow = (vmin*vmin - 1) * np.ones(shape=(len(self.res),self.T))
-        vhigh = (vmax*vmax - 1) * np.ones(shape=(len(self.res),self.T))
+        vlow = (vmin*vmin - vset*vset) * np.ones(shape=(len(self.res),self.T))
+        vhigh = (vmax*vmax - vset*vset) * np.ones(shape=(len(self.res),self.T))
         
         resind = [self.nodes.index(n) for n in self.res]
         R_res = R[resind,:][:,resind]
@@ -339,3 +340,53 @@ class Residence:
             self.s_opt = [self.s[t].getAttr("x") for t in range(self.T+1)]
             self.g_opt = [self.g[t].getAttr("x") for t in range(self.T)]
             return
+
+
+#%% Iterative ADMM 
+def solve_ADMM(homes,graph,cost,grbpath="",
+               kappa=5.0,iter_max=15,vset=1.0,vlow=0.95,vhigh=1.05):
+    res = [h for h in homes]
+    P_est = {0:{h:homes[h]["LOAD"] for h in res}}
+    P_sch = {0:{h:homes[h]["LOAD"] for h in res}}
+    G = {0:{h:[0]*len(cost) for h in res}}
+    S = {}
+    C = {}
+    
+    diff = {}
+    
+    # ADMM iterations 
+    k = 0 # Iteration count
+    while(k <= iter_max):
+        # solve utility level problem to get estimate
+        U_obj = Utility(graph,P_est[k],P_sch[k],G[k],
+                        kappa=kappa,vset=vset,low=vlow,high=vhigh)
+        U_obj.solve(grbpath)
+        P_est[k+1] = U_obj.g_opt
+        
+        
+        # solve individual agent level problem
+        P_sch[k+1] = {}
+        S[k+1] = {}
+        C[k+1] = {}
+        for h in res:
+            H_obj = Home(cost,homes[h],P_est[k][h],P_sch[k][h],G[k][h],kappa=kappa)
+            H_obj.solve(grbpath)
+            P_sch[k+1][h] = H_obj.g_opt
+            S[k+1][h] = H_obj.p_opt
+            C[k+1][h] = H_obj.s_opt
+            
+        
+        
+        # update dual variables
+        G[k+1] = {}
+        diff[k+1] = {}
+        for h in res:
+            check = [(P_est[k+1][h][t] - P_sch[k+1][h][t]) for t in range(len(cost))]
+            G[k+1][h] = [G[k][h][t] + (kappa/2) * check[t] for t in range(len(cost))]
+            diff[k+1][h] = np.linalg.norm(np.array(check))/len(cost)
+        
+        
+        k = k + 1 # Icrement iteration
+    
+    # Return results 
+    return diff, P_sch[k],S[k],C[k]
