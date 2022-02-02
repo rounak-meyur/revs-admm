@@ -163,12 +163,12 @@ class Utility:
         
         self.model = grb.Model(name="Get Optimal Utility Estimated Schedule")
         self.model.ModelSense = grb.GRB.MINIMIZE
-        self.variables(P_sch)
+        self.variables()
         self.network(graph,vset=vset,vmin=low,vmax=high)
         self.set_objective(P_util,P_sch,Gamma,kappa=kappa)
         return
     
-    def variables(self,p_res):
+    def variables(self):
         self.g = self.model.addMVar(shape=(len(self.res),self.T),
                                     name = "g",vtype=grb.GRB.CONTINUOUS)
         return
@@ -345,10 +345,9 @@ class Residence:
 #%% Iterative ADMM 
 def solve_ADMM(homes,graph,cost,grbpath="",
                kappa=5.0,iter_max=15,vset=1.0,vlow=0.95,vhigh=1.05):
-    res = [h for h in homes]
-    P_est = {0:{h:homes[h]["LOAD"] for h in res}}
-    P_sch = {0:{h:homes[h]["LOAD"] for h in res}}
-    G = {0:{h:[0]*len(cost) for h in res}}
+    P_est = {0:{h:[0]*len(cost) for h in homes}}
+    P_sch = {0:{h:[0]*len(cost) for h in homes}}
+    G = {0:{h:[0]*len(cost) for h in homes}}
     S = {}
     C = {}
     
@@ -368,7 +367,7 @@ def solve_ADMM(homes,graph,cost,grbpath="",
         P_sch[k+1] = {}
         S[k+1] = {}
         C[k+1] = {}
-        for h in res:
+        for h in homes:
             H_obj = Home(cost,homes[h],P_est[k][h],P_sch[k][h],G[k][h],kappa=kappa)
             H_obj.solve(grbpath)
             P_sch[k+1][h] = H_obj.g_opt
@@ -380,13 +379,13 @@ def solve_ADMM(homes,graph,cost,grbpath="",
         # update dual variables
         G[k+1] = {}
         diff[k+1] = {}
-        for h in res:
+        for h in homes:
             check = [(P_est[k+1][h][t] - P_sch[k+1][h][t]) for t in range(len(cost))]
             G[k+1][h] = [G[k][h][t] + (kappa/2) * check[t] for t in range(len(cost))]
             diff[k+1][h] = np.linalg.norm(np.array(check))/len(cost)
         
         
-        k = k + 1 # Icrement iteration
+        k = k + 1 # Increment iteration
     
     # Return results 
     return diff, P_sch[k],S[k],C[k]
