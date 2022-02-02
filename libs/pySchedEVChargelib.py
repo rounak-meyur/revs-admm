@@ -386,6 +386,7 @@ def solve_ADMM(homes,graph,cost,grbpath="",
         
         
         k = k + 1 # Increment iteration
+        print("Iteration count: ",k)
     
     # Return results 
     return diff, P_sch[k],S[k],C[k]

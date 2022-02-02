@@ -28,7 +28,7 @@ print("Imported modules and libraries")
 #%% Arguments and inputs
 a = sys.argv[1]
 r = sys.argv[2]
-initial = 0.5
+initial = 0.4
 final = 0.9
 start = 11
 end = 23
@@ -69,8 +69,9 @@ for h in res:
     else:
         homes[h]["EV"] = {}
 
-# Other input parameters
-COST = [1] * 24
+# Other input parameters from DOMINION Energy
+COST = [0.078660]*5 + [0.095111]*10 + [0.214357]*3 + [0.095111]*6
+COST = np.roll(COST,-s).tolist()
 vset = 1.03
 
 
@@ -125,7 +126,7 @@ data += "\n#############################################\n"
 diff_data = '\n'.join([str(h) + ":\t"+' '.join([str(diff[k+1][h]) \
                                                 for k in range(len(diff))]) \
                        for h in ev_home])
-data += soc_data
+data += diff_data
 
 filename = "agentEV-"+str(int(100*adoption))+"-adopt"+str(int(r))+"Watts.txt"
 with open(outpath+filename,'w') as f:
