@@ -84,11 +84,11 @@ nodelist = [n for n in dist if dist.nodes[n]['label']!='S']
 
 
 #%% Multiple voltage profiles
-ratings = [800, 1000, 1200, 1600]
+ratings = [800, 1000, 1200, 1600, 2000]
 
 
 
-for a in [10,20,30,40,50,60]:
+for a in [10,20,30,40,50]:
     volt_data = {'voltage':[],'hour':[],'rating':[]}
     for r in ratings:
         # Extract data

@@ -107,10 +107,10 @@ res_interest = [n for n in res \
 
 
 #%% Multiple voltage profiles
-rating = 1200
+rating = 1600
 
 
-for a in range(10,101,10):
+for a in range(10,51,10):
     volt_data = {'voltage':[],'hour':[],'solve':[]}
     
     # Extract data
