@@ -68,12 +68,7 @@ def compute_voltage(graph,p_sch,vset=1.0):
 a = 10
 r = 800
 
-prefix = "agentEV-10-adopt800Watts.txt"
-with open(outpath+prefix,'r') as f:
-    lines = f.readlines()
-
-sub = int(lines[0].split('\t')[1])
-vset = float(lines[1].split('\t')[1])
+sub = 121144
 s = 6
 
 T = 24

@@ -342,7 +342,7 @@ class Residence:
             return
 
 
-#%% Iterative ADMM 
+#%% Iterative ADMM for distributed optimization
 def solve_ADMM(homes,graph,cost,grbpath="",
                kappa=5.0,iter_max=15,vset=1.0,vlow=0.95,vhigh=1.05):
     P_est = {0:{h:[0]*len(cost) for h in homes}}
