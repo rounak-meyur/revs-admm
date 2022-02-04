@@ -80,7 +80,6 @@ class Home:
             prate = EV_data['rating']
             qcap = EV_data['capacity']
             init = EV_data['initial']
-            final = EV_data['final']
             start = EV_data['start']
             end = EV_data['end']
             
@@ -103,8 +102,6 @@ class Home:
                     self.model.addConstr(self.s[t] == init)
                 else:
                     self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t-1]/qcap))
-                if t >= end:
-                    self.model.addConstr(self.s[t] >= final)
         return
     
     def set_objective(self,p_util,p_res,gamma,kappa=5.0):
@@ -117,8 +114,12 @@ class Home:
              for t in range(self.T)]
         obj3 = grb.quicksum([self.g[t] * a[t] for t in range(self.T)])
         
+        # auxillary objective
+        obj_charge = 1.0 - self.s[self.T-1]
+        
         # total objective
-        self.model.setObjective(obj1+obj2-obj3)
+        obj = 0.01*(obj1+obj2-obj3) + 0.99*obj_charge
+        self.model.setObjective(obj)
         return
     
     def solve(self,grbpath):
@@ -275,7 +276,6 @@ class Residence:
             prate = EV_data['rating']
             qcap = EV_data['capacity']
             init = EV_data['initial']
-            final = EV_data['final']
             start = EV_data['start']
             end = EV_data['end']
             
@@ -298,16 +298,17 @@ class Residence:
                     self.model.addConstr(self.s[t] == init)
                 else:
                     self.model.addConstr(self.s[t] == self.s[t-1] + (self.p[t-1]/qcap))
-                if t >= end:
-                    self.model.addConstr(self.s[t] >= final)
         return
     
     def set_objective(self):
         # main objective
         obj1 = grb.quicksum([(self.c[t]*self.g[t]) for t in range(self.T)])
         
+        # auxillary objective
+        obj_charge = 1.0 - self.s[self.T-1]
+        
         # total objective
-        self.model.setObjective(obj1)
+        self.model.setObjective(0.01*obj1+0.99*obj_charge)
         return
     
     def solve(self,grbpath):
