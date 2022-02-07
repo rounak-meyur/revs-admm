@@ -59,21 +59,21 @@ def draw_boxplot(df,ax=None,a=None,r=None,val="voltage"):
         ax.set_title("")
     if r==None and a!=None:
         ax.set_title("EV adoption percentage: "+str(a)+"%",
-                     fontsize=50)
+                     fontsize=60)
     if r!=None and a==None:
         ax.set_title("EV charger rating: "+str(r)+" Watts",
-                     fontsize=50)
+                     fontsize=60)
     if r!=None and a!=None:
         ax.set_title("EV adoption percentage: "+str(a)+"%, Charger rating: "+str(r)+" Watts",
-                     fontsize=50)
-    ax.tick_params(axis='y',labelsize=50)
-    ax.tick_params(axis='x',labelsize=50)
+                     fontsize=60)
+    ax.tick_params(axis='y',labelsize=60)
+    ax.tick_params(axis='x',labelsize=60)
     if val == 'voltage':
-        ax.set_ylabel("Node Voltage (in p.u.)",fontsize=50)
+        ax.set_ylabel("Node Voltage (in p.u.)",fontsize=60)
     elif val == 'loading':
-        ax.set_ylabel("Edge Loading Level",fontsize=50)
-    ax.set_xlabel("Hours",fontsize=50)
-    ax.legend(ncol=3,prop={'size': 40})
+        ax.set_ylabel("Edge Loading Level",fontsize=60)
+    ax.set_xlabel("Hours",fontsize=60)
+    ax.legend(ncol=3,prop={'size': 60})
     return ax
 
 def plot_convergence(ax,diff_iter):
@@ -320,6 +320,32 @@ all_homes = get_home_load(homepath,shift=shft)
 dist = GetDistNet(distpath,sub)
 print("Loaded network and home data")
 
+#%% Run for single test case
+rate = 4800
+adopt = 90
+
+com = 2
+dirname = str(sub)+"-com-"+str(com)+"/"
+with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
+    lines = f.readlines()
+com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
+
+
+##%% Method Comparison
+fig1 = plt.figure(figsize=(60,20))
+ax1 = fig1.add_subplot(1,1,1)
+ax1 = compare_method(outpath+dirname,adopt,rate,dist,com_homes,ax=ax1)
+fig1.savefig(figpath+str(sub)+"-com-"+str(com)+"-adopt-"+str(adopt)+"-rate-"+str(rate)+"-voltage.png",
+            bbox_inches='tight')
+
+
+fig2 = plt.figure(figsize=(60,20))
+ax2 = fig2.add_subplot(1,1,1)
+ax2 = compare_method_flows(outpath+dirname,adopt,rate,dist,ax=ax2)
+fig2.savefig(figpath+str(sub)+"-com-"+str(com)+"-adopt-"+str(adopt)+"-rate-"+str(rate)+"-loading.png",
+            bbox_inches='tight')
+
+sys.exit(0)
 #%% Run for multiple test cases
 ratings = [3600, 4800, 6000]
 adoptions = [30, 60, 90]
