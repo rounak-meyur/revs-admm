@@ -30,6 +30,7 @@ print("Imported modules and libraries")
 comp_ind = sys.argv[1]
 a = sys.argv[2]
 r = sys.argv[3]
+seed = sys.argv[4]
 capacity = 20
 initial = 0.2
 start = 11
@@ -47,7 +48,7 @@ with open(compath+str(sub)+"-com.txt",'r') as f:
 res_interest = [int(x) for x in lines[int(comp_ind)-1].strip('\n').split(' ')]
 
 
-np.random.seed(1234)
+np.random.seed(int(seed))
 adoption = float(a)/100.0
 rating = float(r)*1e-3
 num_choice = int(adoption * len(res_interest))
@@ -120,10 +121,9 @@ soc_data = '\n'.join([str(h) + ":\t"+' '.join([str(z) for z in SOC[h]]) for h in
 data += soc_data
 
 
-filename = "indEV-"+str(a)+"-adopt"+str(r)+"Watts.txt"
+filename = "indEV-"+str(a)+"-adopt"+str(r)+"Watts-seed-"+str(seed)+".txt"
 with open(outpath+str(sub)+"-com-"+str(comp_ind)+"/"+filename,'w') as f:
     f.write(data)
-
 
 
 

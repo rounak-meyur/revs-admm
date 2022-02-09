@@ -68,7 +68,7 @@ def draw_boxplot(df,ax=None,a=None,r=None,val="voltage"):
         ax.set_title("EV adoption percentage: "+str(a)+"%, Charger rating: "+str(r)+" Watts",
                      fontsize=60)
     ax.tick_params(axis='y',labelsize=60)
-    ax.tick_params(axis='x',labelsize=60)
+    ax.tick_params(axis='x',rotation=90,labelsize=40)
     if val == 'voltage':
         ax.set_ylabel("Node Voltage (in p.u.)",fontsize=60)
     elif val == 'loading':
@@ -187,36 +187,39 @@ def get_data(datalines):
     return dict_data
 
 
-def compare_method(path,adopt,rate,graph,node_interest,
+def compare_method(path,adopt,rate,graph,node_interest,seed = [1234],
                    start=11,end=23,shift=6,ax=None):
     # Initialize data for pandas dataframe
     data = {'voltage':[],'hour':[],'group':[]}
     
-    # Get voltage for ADMM
-    prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-    p_opt = get_power_data(path+prefix)
-    volt_opt = compute_voltage(graph, p_opt)
-    # Get voltage for individual optimization
-    prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-    p_ind = get_power_data(path+prefix)
-    volt_ind = compute_voltage(graph, p_ind)
-    
     # Fill in the dictionary for plot data
-    for t in range(start,end+1):
-        for n in node_interest:
-            hr = str((t+shift)%24)+":00"
-            data['voltage'].append(volt_opt[n][t])
-            data['hour'].append(hr)
-            data['group'].append("Distributed Optimization")
-            data['voltage'].append(volt_ind[n][t])
-            data['hour'].append(hr)
-            data['group'].append("Individual Optimization")
+    for j in seed:
+        # Get voltage for ADMM
+        prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt"
+        p_opt = get_power_data(path+prefix)
+        volt_opt = compute_voltage(graph, p_opt)
+        # Get voltage for individual optimization
+        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt" 
+        p_ind = get_power_data(path+prefix)
+        volt_ind = compute_voltage(graph, p_ind)
+        
+        for t in range(start,end+1):
+            for n in node_interest:
+                hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                data['voltage'].append(volt_opt[n][t])
+                data['hour'].append(hr)
+                data['group'].append("Distributed Optimization")
+                data['voltage'].append(volt_ind[n][t])
+                data['hour'].append(hr)
+                data['group'].append("Individual Optimization")
     df = pd.DataFrame(data)
     ax = draw_boxplot(df,ax=ax,a=adopt,r=rate)
     return ax
 
 
-def compare_rating(path,adopt,rating_list,graph,node_interest,
+def compare_rating(path,adopt,rating_list,graph,node_interest,seed = [1234],
                    start=11,end=23,shift=6,ax=None,method="dist"):
     if method not in ["dist","ind"]:
         print("Invalid method identifier!!!")
@@ -227,23 +230,26 @@ def compare_rating(path,adopt,rating_list,graph,node_interest,
     
     # Iterate through ratings
     for rate in rating_list:
-        prefix = method+"EV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p = get_power_data(path+prefix)
-        v = compute_voltage(graph, p)
-        
-        # Fill in dictionary with data
-        for t in range(start,end+1):
-            for n in node_interest:
-                data['voltage'].append(v[n][t])
-                data['hour'].append(str((t+shift)%24)+":00")
-                data['group'].append(str(rate)+" Watts")
+        for j in seed:
+            prefix = method+"EV-"+str(adopt)+"-adopt"+str(int(rate))\
+                +"Watts-seed-"+str(j)+".txt" 
+            p = get_power_data(path+prefix)
+            v = compute_voltage(graph, p)
+            
+            # Fill in dictionary with data
+            for t in range(start,end+1):
+                hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                for n in node_interest:
+                    data['voltage'].append(v[n][t])
+                    data['hour'].append(hr)
+                    data['group'].append(str(rate)+" Watts")
     
     # Construct the dataframe from dictionary
     df = pd.DataFrame(data)
     ax = draw_boxplot(df,ax=ax,a=adopt)
     return ax
 
-def compare_adoption(path,adopt_list,rate,graph,node_interest,
+def compare_adoption(path,adopt_list,rate,graph,node_interest,seed = [1234],
                      start=11,end=23,shift=6,ax=None,method="dist"):
     if method not in ["dist","ind"]:
         print("Invalid method identifier!!!")
@@ -254,53 +260,59 @@ def compare_adoption(path,adopt_list,rate,graph,node_interest,
     
     # Iterate through adoption list
     for adopt in adopt_list:
-        prefix = method+"EV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p = get_power_data(path+prefix)
-        v = compute_voltage(graph, p)
-        
-        # Fill in dictionary with data
-        for t in range(start,end+1):
-            for n in node_interest:
-                data['voltage'].append(v[n][t])
-                data['hour'].append(str((t+shift)%24)+":00")
-                data['group'].append(str(adopt)+"%")
+        for j in seed:
+            prefix = method+"EV-"+str(adopt)+"-adopt"+str(int(rate))\
+                +"Watts-seed-"+str(j)+".txt"
+            p = get_power_data(path+prefix)
+            v = compute_voltage(graph, p)
+            
+            # Fill in dictionary with data
+            for t in range(start,end+1):
+                hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                for n in node_interest:
+                    data['voltage'].append(v[n][t])
+                    data['hour'].append(hr)
+                    data['group'].append(str(adopt)+"%")
     
     # Construct the dataframe from dictionary
     df = pd.DataFrame(data)
     ax = draw_boxplot(df,ax=ax,r=rate)
     return ax
 
-def compare_method_flows(path,adopt,rate,graph,
+def compare_method_flows(path,adopt,rate,graph,seed=[1234],
                          start=11,end=23,shift=6,ax=None):
     # Initialize data for pandas dataframe
     data = {'loading':[],'hour':[],'group':[]}
     
-    # Get flows for ADMM
-    prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-    p_dist = get_power_data(path+prefix)
-    f_dist = compute_flows(graph,p_dist)
-    
-    
-    # Get flows for individual optimization
-    prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-    p_ind = get_power_data(path+prefix)
-    f_ind = compute_flows(graph,p_ind)
-    
     # Fill in the dictionary for plot data
-    for t in range(start,end+1):
-        for e in graph.edges:
-            hr = str((t+shift)%24)+":00"
-            data['loading'].append(abs(f_dist[e][t]))
-            data['hour'].append(hr)
-            data['group'].append("Distributed Optimization")
-            data['loading'].append(abs(f_ind[e][t]))
-            data['hour'].append(hr)
-            data['group'].append("Individual Optimization")
+    for j in seed:
+        # Get flows for ADMM
+        prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt" 
+        p_dist = get_power_data(path+prefix)
+        f_dist = compute_flows(graph,p_dist)
+        
+        
+        # Get flows for individual optimization
+        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt"
+        p_ind = get_power_data(path+prefix)
+        f_ind = compute_flows(graph,p_ind)
+        for t in range(start,end+1):
+            hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+            for e in graph.edges:
+                str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                data['loading'].append(abs(f_dist[e][t]))
+                data['hour'].append(hr)
+                data['group'].append("Distributed Optimization")
+                data['loading'].append(abs(f_ind[e][t]))
+                data['hour'].append(hr)
+                data['group'].append("Individual Optimization")
     df = pd.DataFrame(data)
     ax = draw_boxplot(df,ax=ax,a=adopt,r=rate,val="loading")
     return ax
 
-sys.exit(0)
+
 #%% Main Code
 # Some constant inputs
 sub = 121144
@@ -324,7 +336,7 @@ print("Loaded network and home data")
 rate = 4800
 adopt = 90
 
-com = 2
+com = 5
 dirname = str(sub)+"-com-"+str(com)+"/"
 with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
     lines = f.readlines()
@@ -408,206 +420,4 @@ for i,a in enumerate(adoptions):
                         method='ind',ax=ax)
 fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-ind-compare-rating.png",
         bbox_inches='tight')
-
-
-
-#%% Compare number of residences in voltage groups
-adopt_list = [40,60,80,100]
-rate = 4800
-sub = 121144
-com = 2
-dirname = str(sub)+"-com-"+str(com)+"/"
-path = outpath + dirname
-graph = GetDistNet(distpath,sub)
-start = 20
-end = 22
-shift = 6
-
-dirname = str(sub)+"-com-"+str(com)+"/"
-with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
-    lines = f.readlines()
-node_interest = [int(x) for x in lines[com-1].strip('\n').split(' ')]
-total_res = len(node_interest)
-
-# Initialize data for pandas dataframe
-data_dist = {'count':[],'stack':[],'hour':[],'adopt':[]}
-data_ind = {'count':[],'stack':[],'hour':[],'adopt':[]}
-
-# Fill in the dictionary for plot data
-v_range = [0.92,0.95]
-v_str = ["< "+str(v_range[0])+" p.u."] + [str(v_range[i])+"-"+str(v_range[i+1])+" p.u." \
-              for i in range(len(v_range)-1)]
-
-for adopt in adopt_list:
-    for t in range(start,end+1):
-        hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
-        for i in range(len(v_range)):
-            # Get voltage for ADMM
-            prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-            p_dist = get_power_data(path+prefix)
-            volt_dist = compute_voltage(graph, p_dist)
-            num_dist = len([n for n in node_interest \
-                            if volt_dist[n][t]<=v_range[i]])
-            data_dist['count'].append(-num_dist)
-            data_dist['stack'].append(v_str[i])
-            data_dist['hour'].append(hr)
-            data_dist['adopt'].append(adopt)
-            
-            # Get voltage for individual optimization
-            prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-            p_ind = get_power_data(path+prefix)
-            volt_ind = compute_voltage(graph, p_ind)
-            num_ind = len([n for n in node_interest \
-                            if volt_ind[n][t]<=v_range[i]])
-            data_ind['count'].append(num_ind)
-            data_ind['stack'].append(v_str[i])
-            data_ind['hour'].append(hr)
-            data_ind['adopt'].append(adopt)
-
-
-num_stack = len(v_str)
-colors = sns.color_palette("Set3")[:num_stack]
-
-fig = plt.figure(figsize=(20,20))
-ax = fig.add_subplot(1,1,1)
-
-df_dist = pd.DataFrame(data_dist)
-for i,g in enumerate(df_dist.groupby("stack")):
-    ax = sns.barplot(data=g[1], x="hour",y="count",hue="adopt",
-                         palette=[colors[-i-1]],ax=ax,
-                         zorder=-i, edgecolor="k")
-    
-
-df_ind = pd.DataFrame(data_ind)
-for i,g in enumerate(df_ind.groupby("stack")):
-    ax = sns.barplot(data=g[1], x="hour",y="count",hue="adopt",
-                         palette=[colors[-i-1]],ax=ax,
-                         zorder=-i, edgecolor="k")
-    print(g[1])
-    
-ax.tick_params(axis='y',labelsize=40)
-ax.tick_params(axis='x',labelsize=40)
-ax.set_ylabel("Number of residences",fontsize=40)
-ax.set_xlabel("Hours",fontsize=40)
-ax.axhline(color='k',linewidth=2.0)
-
-
-lim = 40
-ax.set_ylim(bottom=-lim,top=lim)
-ypos = np.arange(-lim,lim+1,20)
-ypos_label = [str(int(abs(y))) for y in ypos]
-ax.set_yticks(ypos)
-ax.set_yticklabels(ypos_label)
-
-
-
-leghandles = [Patch(facecolor=color, label=label) \
-              for label, color in zip(v_str, colors)]
-ax.legend(handles=leghandles,ncol=3,prop={'size': 40})
-
-
-#%% Get out of limit count
-rate = 4800
-sub = 121144
-com = 2
-dirname = str(sub)+"-com-"+str(com)+"/"
-path = outpath + dirname
-graph = GetDistNet(distpath,sub)
-start = 20
-end = 22
-shift = 6
-
-dirname = str(sub)+"-com-"+str(com)+"/"
-with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
-    lines = f.readlines()
-node_interest = [int(x) for x in lines[com-1].strip('\n').split(' ')]
-total_res = len(node_interest)
-
-# Initialize data for pandas dataframe
-data_dist = {'count':[],'hour':[],'adopt':[]}
-data_ind = {'count':[],'hour':[],'adopt':[]}
-
-# Fill in the dictionary for plot data
-adopt_list = [40,60,80,100]
-for adopt in adopt_list:
-    for t in range(start,end+1):
-        hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
-        
-        # Get voltage for ADMM
-        prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p_dist = get_power_data(path+prefix)
-        volt_dist = compute_voltage(graph, p_dist)
-        num_dist = len([n for n in node_interest if volt_dist[n][t]<=0.95])
-        data_dist['count'].append(-num_dist)
-        data_dist['hour'].append(hr)
-        data_dist['adopt'].append(adopt)
-        
-        # Get voltage for individual optimization
-        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p_ind = get_power_data(path+prefix)
-        volt_ind = compute_voltage(graph, p_ind)
-        num_ind = len([n for n in node_interest if volt_ind[n][t]<=0.95])
-        data_ind['count'].append(num_ind)
-        data_ind['hour'].append(hr)
-        data_ind['adopt'].append(adopt)
-
-
-##%% Plot the bars
-colors = sns.color_palette("Set3")[:len(adopt_list)]
-fig = plt.figure(figsize=(20,20))
-ax = fig.add_subplot(1,1,1)
-
-df_dist = pd.DataFrame(data_dist)
-ax = sns.barplot(data=df_dist, x="hour",y="count",hue="adopt",
-                     palette="Set3",ax=ax,edgecolor="k")
-
-df_ind = pd.DataFrame(data_ind)
-ax = sns.barplot(data=df_ind, x="hour",y="count",hue="adopt",
-                     palette="Set3",ax=ax,edgecolor="k")
-    
-ax.tick_params(axis='y',labelsize=40)
-ax.tick_params(axis='x',labelsize=40)
-ax.set_ylabel("Number of residences",fontsize=40)
-ax.set_xlabel("Hours",fontsize=40)
-ax.axhline(color='k',linewidth=2.0)
-
-lim = 40
-ax.set_ylim(bottom=-lim,top=lim)
-ypos = np.arange(-lim,lim+1,20)
-ypos_label = [str(int(abs(y))) for y in ypos]
-ax.set_yticks(ypos)
-ax.set_yticklabels(ypos_label)
-
-
-a_str = [str(x)+"%" for x in adopt_list]
-leghandles = [Patch(facecolor=color, label=label) \
-              for label, color in zip(a_str, colors)]
-ax.legend(handles=leghandles,ncol=2,prop={'size': 40})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
