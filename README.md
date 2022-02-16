@@ -6,3 +6,9 @@ The crux is a distributed framework which generates an optimal EV charging sched
 <img src="figs/121144-com-2-homes.png" width="390"/>    <img src="figs/121144-com-2-rate-4800-voltlimit.png" width="540"/>
 
 <img src="figs/121144-com-5-homes.png" width="390"/>    <img src="figs/121144-com-5-rate-4800-voltlimit.png" width="540"/>
+
+<img src="figs/121144-com-1-homes.png" width="390"/>    <img src="figs/121144-com-1-rate-4800-voltlimit.png" width="540"/>
+
+<img src="figs/121144-com-3-homes.png" width="390"/>    <img src="figs/121144-com-3-rate-4800-voltlimit.png" width="540"/>
+
+<img src="figs/121144-com-4-homes.png" width="390"/>    <img src="figs/121144-com-4-rate-4800-voltlimit.png" width="540"/>
