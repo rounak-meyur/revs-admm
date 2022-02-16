@@ -2,7 +2,11 @@
 """
 Created on Tue Feb  1 12:46:21 2022
 
-@author: Rounak Meyur
+Author: Rounak Meyur
+
+Description: This compuutes the optimal schedule when each residence solves its
+individual optimization problem in a coordinated approach with the network
+operator aiming to maintain higher level of reliability.
 """
 
 import sys,os
@@ -12,12 +16,13 @@ import numpy as np
 workpath = os.getcwd()
 libpath = workpath + "/libs/"
 
-scratchpath = "/sfs/lustre/bahamut/scratch/rm5nz/ev-schedule"
+# scratchpath = "/sfs/lustre/bahamut/scratch/rm5nz/ev-schedule"
+scratchpath = workpath
 grbpath = scratchpath + "/gurobi/"
 outpath = scratchpath + "/out/"
 compath = scratchpath + "/input/"
-homepath = scratchpath + "/input/load/121-home-load.csv"
-distpath = scratchpath + "/input/osm-primnet/"
+homepath = scratchpath + "/input/121-home-load.csv"
+distpath = scratchpath + "/input/"
 
 
 sys.path.append(libpath)

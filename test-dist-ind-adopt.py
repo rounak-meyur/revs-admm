@@ -2,7 +2,10 @@
 """
 Created on Wed Feb  9 10:51:15 2022
 
-@author: rm5nz
+Author: Rounak Meyur
+
+Description: Plot metric of reliability by showing number of residences with 
+undervoltage or lower than acceptable voltage
 """
 
 import sys,os
@@ -10,7 +13,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import networkx as nx
 import itertools
 from matplotlib.patches import Patch
 
@@ -123,15 +125,15 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
     for i,g in enumerate(df.groupby("stack",sort=False)):
         ax = sns.barplot(data=g[1], x="hour",y="count",hue="group",
                               palette=[colors[i]],ax=ax,
-                              zorder=-i, edgecolor="k")
+                              zorder=-i, edgecolor="k",errwidth=5)
     
     
     # Format other stuff
     ax.tick_params(axis='y',labelsize=40)
     ax.tick_params(axis='x',labelsize=40,rotation=90)
-    ax.set_ylabel("Number of residences",fontsize=40)
-    ax.set_xlabel("Hours",fontsize=40)
-    ax.set_title("Adoption percentage: "+str(adopt)+"%",fontsize=40)
+    ax.set_ylabel("Number of residences",fontsize=50)
+    ax.set_xlabel("Hours",fontsize=50)
+    ax.set_title("Adoption percentage: "+str(adopt)+"%",fontsize=50)
     ax.set_ylim(bottom=0,top=80)
 
 
@@ -157,7 +159,7 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
 #%% Get out of limit count for single adoption
 rating = 4800
 sub = 121144
-com = 5
+com = 4
 dirname = str(sub)+"-com-"+str(com)+"/"
 dist = GetDistNet(distpath,sub)
 start = 20
@@ -171,9 +173,8 @@ res_interest = [int(x) for x in lines[com-1].strip('\n').split(' ')]
 
 
 
-seeds = [1234,12,123,234]
-# seeds = [1234]
-adopt_list = [60,80,90]
+seeds = [1234,56,567,67,678,5678]
+adopt_list = [30,60,90]
 fig = plt.figure(figsize=(20*len(adopt_list),20))
 
 for i,adopt in enumerate(adopt_list):
@@ -184,91 +185,7 @@ for i,adopt in enumerate(adopt_list):
 
     
 
-fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-rate-"+str(rating)+"-outlimit.png",
+fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-rate-"+str(rating)+"-voltlimit.png",
             bbox_inches='tight')
     
-
-
-sys.exit(0)
-
-#%% Get out of limit count for multiple adoption
-rate = 4800
-sub = 121144
-com = 2
-dirname = str(sub)+"-com-"+str(com)+"/"
-path = outpath + dirname
-graph = GetDistNet(distpath,sub)
-start = 20
-end = 22
-shift = 6
-
-dirname = str(sub)+"-com-"+str(com)+"/"
-with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
-    lines = f.readlines()
-node_interest = [int(x) for x in lines[com-1].strip('\n').split(' ')]
-total_res = len(node_interest)
-
-# Initialize data for pandas dataframe
-data_dist = {'count':[],'hour':[],'adopt':[]}
-data_ind = {'count':[],'hour':[],'adopt':[]}
-
-# Fill in the dictionary for plot data
-adopt_list = [40,60,80,100]
-for adopt in adopt_list:
-    for t in range(start,end+1):
-        hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
-        
-        # Get voltage for ADMM
-        prefix = "distEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p_dist = get_power_data(path+prefix)
-        volt_dist = compute_voltage(graph, p_dist)
-        num_dist = len([n for n in node_interest if volt_dist[n][t]<=0.95])
-        data_dist['count'].append(-num_dist)
-        data_dist['hour'].append(hr)
-        data_dist['adopt'].append(adopt)
-        
-        # Get voltage for individual optimization
-        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))+"Watts.txt" 
-        p_ind = get_power_data(path+prefix)
-        volt_ind = compute_voltage(graph, p_ind)
-        num_ind = len([n for n in node_interest if volt_ind[n][t]<=0.95])
-        data_ind['count'].append(num_ind)
-        data_ind['hour'].append(hr)
-        data_ind['adopt'].append(adopt)
-
-
-##%% Plot the bars
-colors = sns.color_palette("Set3")[:len(adopt_list)]
-fig = plt.figure(figsize=(20,20))
-ax = fig.add_subplot(1,1,1)
-
-df_dist = pd.DataFrame(data_dist)
-ax = sns.barplot(data=df_dist, x="hour",y="count",hue="adopt",
-                     palette="Set3",ax=ax,edgecolor="k")
-
-df_ind = pd.DataFrame(data_ind)
-ax = sns.barplot(data=df_ind, x="hour",y="count",hue="adopt",
-                     palette="Set3",ax=ax,edgecolor="k")
-    
-ax.tick_params(axis='y',labelsize=40)
-ax.tick_params(axis='x',labelsize=40)
-ax.set_ylabel("Number of residences",fontsize=40)
-ax.set_xlabel("Hours",fontsize=40)
-ax.axhline(color='k',linewidth=2.0)
-
-lim = 40
-ax.set_ylim(bottom=-lim,top=lim)
-ypos = np.arange(-lim,lim+1,20)
-ypos_label = [str(int(abs(y))) for y in ypos]
-ax.set_yticks(ypos)
-ax.set_yticklabels(ypos_label)
-
-
-a_str = [str(x)+"%" for x in adopt_list]
-leghandles = [Patch(facecolor=color, label=label) \
-              for label, color in zip(a_str, colors)]
-ax.legend(handles=leghandles,ncol=2,prop={'size': 40})
-
-
-sys.exit(0)
 

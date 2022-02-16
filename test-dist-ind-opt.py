@@ -2,7 +2,10 @@
 """
 Created on Mon Feb  7 10:50:53 2022
 
-@author: rm5nz
+Author: Rounak Meyur
+
+Description: Compares loading level and voltage at different nodes in the 
+network for different levels of EV adoption
 """
 
 import sys,os
@@ -11,7 +14,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import networkx as nx
-from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
 workpath = os.getcwd()
 libpath = workpath + "/libs/"
@@ -29,26 +32,49 @@ from pyDrawNetworklib import DrawNodes,DrawEdges
 print("Imported modules and libraries")
 
 #%% Functions for plots
-def plot_network(ax,net,path=None,with_secnet=True,ev_home=[]):
+def plot_network(ax,net,ev_home=[]):
     """
     """
-    # Draw nodes
-    DrawNodes(net,ax,label='S',color='dodgerblue',size=2000)
-    DrawNodes(net,ax,label='T',color='green',size=25)
-    DrawNodes(net,ax,label='R',color='black',size=2.0)
-    if with_secnet: DrawNodes(net,ax,label='H',color='crimson',size=2.0)
+    c_hv = "dodgerblue"
+    c_prim = "green"
+    c_sec = "crimson"
+    c_ev = "orange"
     # Draw edges
     DrawEdges(net,ax,label='P',color='black',width=2.0)
-    DrawEdges(net,ax,label='E',color='dodgerblue',width=2.0)
-    if with_secnet: DrawEdges(net,ax,label='S',color='crimson',width=1.0)
+    DrawEdges(net,ax,label='E',color=c_hv,width=2.0)
+    DrawEdges(net,ax,label='S',color=c_sec,width=2.0)
+    
+    # Draw nodes
+    DrawNodes(net,ax,label='S',color=c_hv,size=2000)
+    DrawNodes(net,ax,label='T',color=c_prim,size=300)
+    DrawNodes(net,ax,label='R',color='black',size=300)
+    DrawNodes(net,ax,label='H',color=c_sec,size=100)
+    
     ax.tick_params(left=False,bottom=False,labelleft=False,labelbottom=False)
+    
+    leghands = [#Line2D([0], [0], color=c_hv,markersize=0,
+                       #label='High Voltage Feeder'),
+                Line2D([0], [0], color='black', markersize=0,
+                       label='Primary Network'),
+                Line2D([0], [0], color=c_sec,markersize=0,
+                       label='Secondary Network'),
+                Line2D([0], [0], color='white', markerfacecolor=c_hv, 
+                       marker='o',markersize=30,label='Substation'),
+                Line2D([0], [0], color='white', markerfacecolor=c_prim, 
+                       marker='o',markersize=30,label='Transformer'),
+                Line2D([0], [0], color='white', markerfacecolor=c_sec, 
+                       marker='o',markersize=30,label='Residence')]
     
     if len(ev_home) != 0:
         # Add the nodes where EV adoption
         x_int = [net.nodes[n]['cord'][0] for n in ev_home]
         y_int = [net.nodes[n]['cord'][1] for n in ev_home]
-        ax.scatter(x_int,y_int,s=100.0,c='blue')
+        ax.scatter(x_int,y_int,s=400.0,c=c_ev)
+        leghands.append(Line2D([0], [0], color='white', markerfacecolor=c_ev, 
+               marker='o',markersize=20,label='Residence with EV'))
+    ax.legend(handles=leghands,ncol=1,prop={'size': 30},loc="lower right")
     return ax
+
 
 def draw_boxplot(df,ax=None,a=None,r=None,val="voltage"):
     if ax == None:
@@ -65,14 +91,14 @@ def draw_boxplot(df,ax=None,a=None,r=None,val="voltage"):
         ax.set_title("EV charger rating: "+str(r)+" Watts",
                      fontsize=60)
     if r!=None and a!=None:
-        ax.set_title("EV adoption percentage: "+str(a)+"%, Charger rating: "+str(r)+" Watts",
+        ax.set_title("EV adoption percentage: "+str(a)+"%",
                      fontsize=60)
     ax.tick_params(axis='y',labelsize=60)
     ax.tick_params(axis='x',rotation=90,labelsize=40)
     if val == 'voltage':
         ax.set_ylabel("Node Voltage (in p.u.)",fontsize=60)
     elif val == 'loading':
-        ax.set_ylabel("Edge Loading Level",fontsize=60)
+        ax.set_ylabel("Percentage Edge Loading Level",fontsize=60)
     ax.set_xlabel("Hours",fontsize=60)
     ax.legend(ncol=3,prop={'size': 60})
     return ax
@@ -302,10 +328,10 @@ def compare_method_flows(path,adopt,rate,graph,seed=[1234],
             hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
             for e in graph.edges:
                 str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
-                data['loading'].append(abs(f_dist[e][t]))
+                data['loading'].append(abs(f_dist[e][t])*100.0)
                 data['hour'].append(hr)
                 data['group'].append("Distributed Optimization")
-                data['loading'].append(abs(f_ind[e][t]))
+                data['loading'].append(abs(f_ind[e][t])*100.0)
                 data['hour'].append(hr)
                 data['group'].append("Individual Optimization")
     df = pd.DataFrame(data)
@@ -332,11 +358,27 @@ COST = np.roll(COST,-shft).tolist()
 dist = GetDistNet(distpath,sub)
 print("Loaded network and home data")
 
+#%% Draw the network with community of residences
+for com in range(1,6):
+    dirname = str(sub)+"-com-"+str(com)+"/"
+    with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
+        lines = f.readlines()
+    com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
+    
+    fig = plt.figure(figsize=(40,40))
+    ax = fig.add_subplot(1,1,1)
+    ax = plot_network(ax,dist,com_homes)
+    
+    fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-homes.png",
+                bbox_inches="tight")
+
+
+sys.exit(0)
 #%% Run for single test case
 rate = 4800
-adopt = 90
+adopt = 60
 
-com = 5
+com = 2
 dirname = str(sub)+"-com-"+str(com)+"/"
 with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
     lines = f.readlines()
@@ -370,13 +412,13 @@ com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
 
 fig = plt.figure(figsize=(40,40), dpi=72)
 ax = fig.add_subplot(111)
-ax = plot_network(ax,dist,with_secnet=True,ev_home=com_homes)
+ax = plot_network(ax,dist,ev_home=com_homes)
 fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-homes.png",
             bbox_inches='tight')
 
 
 ##%% Method Comparison
-fig1 = plt.figure(figsize=(60,20*len(adoptions)))
+fig1 = plt.figure(figsize=(60,25*len(adoptions)))
 r = 4800
 for i,a in enumerate(adoptions):
     ax1 = fig1.add_subplot(len(adoptions),1,i+1)

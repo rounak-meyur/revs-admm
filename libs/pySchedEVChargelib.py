@@ -3,6 +3,9 @@
 Created on Wed Jan 19 10:27:37 2022
 
 Author: Rounak Meyur
+
+Description: Classes and methods to schedule EV charging at residential premises
+with and without assuring network reliability
 """
 
 import sys
@@ -94,6 +97,7 @@ class Home:
                     self.model.addConstr(e[t] == 0)
             
             # SOC variables and constraints
+            self.model.addConstr(self.s[self.T] >= 0.9)
             for t in range(self.T+1):
                 self.s[t] = self.model.addVar(vtype=grb.GRB.CONTINUOUS, lb=init, 
                                               ub=1.0,name="s_{0}".format(t))
@@ -115,10 +119,11 @@ class Home:
         obj3 = grb.quicksum([self.g[t] * a[t] for t in range(self.T)])
         
         # auxillary objective
-        obj_charge = 1.0 - self.s[self.T-1]
+        # obj_charge = 1.0 - self.s[self.T]
         
         # total objective
-        obj = 0.01*(obj1+obj2-obj3) + 0.99*obj_charge
+        #  obj = 0.001*(obj1+obj2-obj3) + 0.999*obj_charge
+        obj = obj1+obj2-obj3
         self.model.setObjective(obj)
         return
     
@@ -305,7 +310,7 @@ class Residence:
         obj1 = grb.quicksum([(self.c[t]*self.g[t]) for t in range(self.T)])
         
         # auxillary objective
-        obj_charge = 1.0 - self.s[self.T-1]
+        obj_charge = 1.0 - self.s[self.T]
         
         # total objective
         self.model.setObjective(0.01*obj1+0.99*obj_charge)
@@ -391,3 +396,137 @@ def solve_ADMM(homes,graph,cost,grbpath="",
     
     # Return results 
     return diff, P_sch[k],S[k],C[k]
+
+
+#%% Centralized MILP solved by operator after access to all EV parameters
+class Central:
+    def __init__(self,homedata,graph,cost,grbpath="",
+                 vset=1.0,vmin=0.95,vmax=1.05):
+        self.c = np.array(cost)
+        self.T = len(cost)
+        self.nodes = [n for n in graph.nodes if graph.nodes[n]['label'] != 'S']
+        self.res = [n for n in graph if graph.nodes[n]['label'] == 'H']
+        self.N = len(self.nodes)
+        self.data = homedata
+        
+        self.model = grb.Model(name="Get Optimal Schedule MILP")
+        self.model.ModelSense = grb.GRB.MINIMIZE
+        
+        # Add residence constraints
+        self.netload_var()
+        self.add_EV()
+        
+        # Add network constraints and incentive
+        self.network(graph,vset=vset,vmin=vmin,vmax=vmax)
+        self.set_objective()
+        
+        return
+    
+    def netload_var(self):
+        self.e = self.model.addMVar(shape=(len(self.res),self.T),
+                                    name = "e",vtype=grb.GRB.BINARY)
+        self.g = self.model.addMVar(shape=(len(self.res),self.T),
+                                    name = "g",vtype=grb.GRB.CONTINUOUS)
+        self.p = self.model.addMVar(shape=(len(self.res),self.T),
+                                    name = "p",vtype=grb.GRB.CONTINUOUS)
+        self.s = self.model.addMVar(shape=(len(self.res),self.T+1),ub=1,lb=0,
+                                    name = "s",vtype=grb.GRB.CONTINUOUS)
+        f = np.array([[self.data[h]["LOAD"][t] for t in range(self.T)] \
+                      for h in self.res])
+        for t in range(self.T):
+            self.model.addConstr(self.g[:,t] == self.p[:,t] + f[:,t])
+        return
+    
+    def add_EV(self):
+        for i,h in enumerate(self.res):
+            if self.data[h]["EV"] == {}:
+                # Variables for no EV in residence
+                self.model.addConstr(self.p[i,:] == 0)
+                self.model.addConstr(self.e[i,:] == 0)
+                self.model.addConstr(self.s[i,:] == 0)
+            else:
+                # Variables for EV in residence
+                EV_data = self.data[h]["EV"]
+                prate = EV_data['rating']
+                qcap = EV_data['capacity']
+                init = EV_data['initial']
+                start = EV_data['start']
+                end = EV_data['end']
+            
+                # Power consumption variables and constraints
+                for t in range(self.T):
+                    self.model.addConstr(self.p[i,t] == self.e[i,t]*prate)
+                    if (t<start) or (t>=end):
+                        self.model.addConstr(self.e[i,t] == 0)
+                
+                # SOC variables and constraints
+                self.model.addConstr(self.s[i,self.T]>=0.9)
+                for t in range(self.T+1):
+                    if t == 0:
+                        self.model.addConstr(self.s[i,t] == init)
+                    else:
+                        self.model.addConstr(self.s[i,t] == self.s[i,t-1] \
+                                             + (self.p[i,t-1]/qcap))
+        return
+    
+    def network(self,graph,vset=1.0,vmin=0.95,vmax=1.05):
+        R = compute_Rmat(graph)
+        vlow = (vmin*vmin - vset*vset) * np.ones(shape=(len(self.res),self.T))
+        vhigh = (vmax*vmax - vset*vset) * np.ones(shape=(len(self.res),self.T))
+        
+        resind = [self.nodes.index(n) for n in self.res]
+        R_res = R[resind,:][:,resind]
+        
+        for t in range(self.T):
+            self.model.addConstr(-R_res@self.g[:,t] <= vhigh[:,t])
+            self.model.addConstr(-R_res@self.g[:,t] >= vlow[:,t])
+        return
+    
+    def set_objective(self):
+        obj1 = 0
+        for t in range(self.T):
+            obj1 += self.g[:,t].sum() * self.c[t]
+        
+        # Alternate objective function for balancing high EV charging and cost
+        # obj2 = len(self.res) - self.s[:,self.T].sum()
+        # self.model.setObjective(0.001*obj1+0.999*obj2)
+        
+        self.model.setObjective(obj1)
+        return
+    
+    def solve(self,grbpath):
+        # Write the LP problem
+        self.model.write(grbpath+"load-schedule-central.lp")
+        
+        # Set up solver settings
+        grb.setParam('OutputFlag', 0)
+        grb.setParam('Heuristics', 0)
+        
+        # Open log file
+        logfile = open(grbpath+'gurobi-central.log', 'w')
+        
+        # Pass data into my callback function
+        self.model._lastiter = -grb.GRB.INFINITY
+        self.model._lastnode = -grb.GRB.INFINITY
+        self.model._logfile = logfile
+        self.model._vars = self.model.getVars()
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Solve model and capture solution information
+        self.model.optimize(mycallback)
+        
+        # Close log file
+        logfile.close()
+        if self.model.SolCount == 0:
+            print('No solution found, optimization status = %d' % self.model.Status)
+            sys.exit(0)
+        else:
+            G = self.g.getAttr("x").tolist()
+            P = self.p.getAttr("x").tolist()
+            S = self.s.getAttr("x").tolist()
+            self.g_opt = {h: G[i] for i,h in enumerate(self.res)}
+            self.p_opt = {h: P[i] for i,h in enumerate(self.res)}
+            self.s_opt = {h: S[i] for i,h in enumerate(self.res)}
+        return
