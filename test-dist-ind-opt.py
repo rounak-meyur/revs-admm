@@ -20,7 +20,7 @@ workpath = os.getcwd()
 libpath = workpath + "/libs/"
 figpath = workpath + "/figs/"
 outpath = workpath + "/out/"
-distpath = workpath + "/input/osm-primnet/"
+distpath = workpath + "/input/"
 grbpath = workpath + "/gurobi/"
 homepath = workpath + "/input/load/121-home-load.csv"
 
@@ -76,29 +76,32 @@ def plot_network(ax,net,ev_home=[]):
     return ax
 
 
-def draw_boxplot(df,ax=None,a=None,r=None,val="voltage"):
+def draw_boxplot(df,ax=None,a=None,r=None,val="voltage",colset="Set2"):
     if ax == None:
         fig = plt.figure(figsize=(60,20))
         ax = fig.add_subplot(1,1,1)
     ax = sns.boxplot(x="hour", y=val, hue="group",
-                 data=df, palette="Set3",ax=ax)
-    if r==None and a==None:
-        ax.set_title("")
-    if r==None and a!=None:
-        ax.set_title("EV adoption percentage: "+str(a)+"%",
-                     fontsize=60)
-    if r!=None and a==None:
-        ax.set_title("EV charger rating: "+str(r)+" Watts",
-                     fontsize=60)
-    if r!=None and a!=None:
-        ax.set_title("EV adoption percentage: "+str(a)+"%",
-                     fontsize=60)
+                 data=df, palette=colset,ax=ax)
+    # if r==None and a==None:
+    #     ax.set_title("")
+    # if r==None and a!=None:
+    #     ax.set_title("EV adoption percentage: "+str(a)+"%",
+    #                  fontsize=60)
+    # if r!=None and a==None:
+    #     ax.set_title("EV charger rating: "+str(r)+" Watts",
+    #                  fontsize=60)
+    # if r!=None and a!=None:
+    #     ax.set_title("EV adoption percentage: "+str(a)+"%",
+    #                  fontsize=60)
+    
     ax.tick_params(axis='y',labelsize=60)
     ax.tick_params(axis='x',rotation=90,labelsize=40)
     if val == 'voltage':
-        ax.set_ylabel("Node Voltage (in p.u.)",fontsize=60)
+        ax.set_ylabel("Node voltage (in p.u.)",fontsize=60)
+        ax.set_title("Residence node voltages",fontsize=60)
     elif val == 'loading':
-        ax.set_ylabel("Percentage Edge Loading Level",fontsize=60)
+        ax.set_ylabel("Percentage loading level",fontsize=60)
+        ax.set_title("Distribution line loading level",fontsize=60)
     ax.set_xlabel("Hours",fontsize=60)
     ax.legend(ncol=3,prop={'size': 60})
     return ax
@@ -241,7 +244,7 @@ def compare_method(path,adopt,rate,graph,node_interest,seed = [1234],
                 data['hour'].append(hr)
                 data['group'].append("Individual Optimization")
     df = pd.DataFrame(data)
-    ax = draw_boxplot(df,ax=ax,a=adopt,r=rate)
+    ax = draw_boxplot(df,ax=ax,a=adopt,r=rate,colset="Set3")
     return ax
 
 
@@ -302,7 +305,7 @@ def compare_adoption(path,adopt_list,rate,graph,node_interest,seed = [1234],
     
     # Construct the dataframe from dictionary
     df = pd.DataFrame(data)
-    ax = draw_boxplot(df,ax=ax,r=rate)
+    ax = draw_boxplot(df,ax=ax,r=rate,colset = "Set3")
     return ax
 
 def compare_method_flows(path,adopt,rate,graph,seed=[1234],
@@ -335,7 +338,7 @@ def compare_method_flows(path,adopt,rate,graph,seed=[1234],
                 data['hour'].append(hr)
                 data['group'].append("Individual Optimization")
     df = pd.DataFrame(data)
-    ax = draw_boxplot(df,ax=ax,a=adopt,r=rate,val="loading")
+    ax = draw_boxplot(df,ax=ax,a=adopt,r=rate,val="loading",colset = "Set2")
     return ax
 
 
