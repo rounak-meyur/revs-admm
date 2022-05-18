@@ -67,6 +67,9 @@ def get_power_data(path):
     p = get_data(res_lines)
     return p
 
+
+#%% Functions to plot the grouped bar plots
+
 def compare_node_counts(path,adopt,rate,graph,node_interest,
                         v_range=[0.92,0.95,0.97],seed = [1234],
                         start=11,end=23,shift=6,ax=None):
