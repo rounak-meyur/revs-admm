@@ -20,7 +20,7 @@ workpath = os.getcwd()
 libpath = workpath + "/libs/"
 figpath = workpath + "/figs/"
 outpath = workpath + "/out/"
-distpath = workpath + "/input/osm-primnet/"
+distpath = workpath + "/input/"
 grbpath = workpath + "/gurobi/"
 homepath = workpath + "/input/load/121-home-load.csv"
 
@@ -132,12 +132,12 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
     
     
     # Format other stuff
-    ax.tick_params(axis='y',labelsize=40)
-    ax.tick_params(axis='x',labelsize=40,rotation=90)
-    ax.set_ylabel("Number of residences",fontsize=50)
-    ax.set_xlabel("Hours",fontsize=50)
-    ax.set_title("Adoption percentage: "+str(adopt)+"%",fontsize=50)
-    ax.set_ylim(bottom=0,top=80)
+    ax.tick_params(axis='y',labelsize=50)
+    ax.tick_params(axis='x',labelsize=50,rotation=60)
+    ax.set_ylabel("Number of residences",fontsize=60)
+    ax.set_xlabel("Hours",fontsize=60)
+    ax.set_title("Adoption percentage: "+str(adopt)+"%",fontsize=60)
+    ax.set_ylim(bottom=0,top=120)
 
 
     hatches = itertools.cycle(['/', ''])
@@ -153,16 +153,16 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
                   label="Distributed optimization",hatch='/'),
                    Patch(facecolor="white",edgecolor='black',
                          label="Individual optimization",hatch='')]
-    leg1 = ax.legend(handles=han1,ncol=1,prop={'size': 30},loc='upper right')
-    ax.legend(handles=han2,ncol=1,prop={'size': 30},loc='upper left')
-    ax.add_artist(leg1)
+    # leg1 = ax.legend(handles=han1,ncol=1,prop={'size': 50},loc='center right')
+    ax.legend(handles=han1+han2,ncol=1,prop={'size': 50},loc='upper right')
+    # ax.add_artist(leg1)
     return ax
     
 
 #%% Get out of limit count for single adoption
 rating = 4800
 sub = 121144
-com = 4
+com = 2
 dirname = str(sub)+"-com-"+str(com)+"/"
 dist = GetDistNet(distpath,sub)
 start = 20

@@ -72,7 +72,7 @@ def plot_network(ax,net,ev_home=[]):
         ax.scatter(x_int,y_int,s=400.0,c=c_ev)
         leghands.append(Line2D([0], [0], color='white', markerfacecolor=c_ev, 
                marker='o',markersize=20,label='Residence with EV'))
-    ax.legend(handles=leghands,ncol=1,prop={'size': 30},loc="lower right")
+    ax.legend(handles=leghands,ncol=1,prop={'size': 50},loc="lower right")
     return ax
 
 
@@ -94,16 +94,16 @@ def draw_boxplot(df,ax=None,a=None,r=None,val="voltage",colset="Set2"):
     #     ax.set_title("EV adoption percentage: "+str(a)+"%",
     #                  fontsize=60)
     
-    ax.tick_params(axis='y',labelsize=60)
-    ax.tick_params(axis='x',rotation=90,labelsize=40)
+    ax.tick_params(axis='y',labelsize=70)
+    ax.tick_params(axis='x',rotation=60,labelsize=70)
     if val == 'voltage':
-        ax.set_ylabel("Node voltage (in p.u.)",fontsize=60)
-        ax.set_title("Residence node voltages",fontsize=60)
+        ax.set_ylabel("Node voltage (in p.u.)",fontsize=80)
+        # ax.set_title("Residence node voltages",fontsize=60)
     elif val == 'loading':
-        ax.set_ylabel("Percentage loading level",fontsize=60)
-        ax.set_title("Distribution line loading level",fontsize=60)
+        ax.set_ylabel("Line loading level (%)",fontsize=80)
+        # ax.set_title("Distribution line loading level",fontsize=60)
     ax.set_xlabel("Hours",fontsize=60)
-    ax.legend(ncol=3,prop={'size': 60})
+    ax.legend(ncol=3,prop={'size': 70})
     return ax
 
 def plot_convergence(ax,diff_iter):
@@ -362,24 +362,24 @@ dist = GetDistNet(distpath,sub)
 print("Loaded network and home data")
 
 #%% Draw the network with community of residences
-for com in range(1,6):
-    dirname = str(sub)+"-com-"+str(com)+"/"
-    with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
-        lines = f.readlines()
-    com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
+# for com in range(1,6):
+#     dirname = str(sub)+"-com-"+str(com)+"/"
+#     with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
+#         lines = f.readlines()
+#     com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
     
-    fig = plt.figure(figsize=(40,40))
-    ax = fig.add_subplot(1,1,1)
-    ax = plot_network(ax,dist,com_homes)
+#     fig = plt.figure(figsize=(40,40))
+#     ax = fig.add_subplot(1,1,1)
+#     ax = plot_network(ax,dist,com_homes)
     
-    fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-homes.png",
-                bbox_inches="tight")
+#     fig.savefig(figpath+str(sub)+"-com-"+str(com)+"-homes.png",
+#                 bbox_inches="tight")
 
 
-sys.exit(0)
+# sys.exit(0)
 #%% Run for single test case
 rate = 4800
-adopt = 60
+adopt = 90
 
 com = 2
 dirname = str(sub)+"-com-"+str(com)+"/"
