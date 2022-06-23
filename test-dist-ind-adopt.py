@@ -137,7 +137,7 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
     ax.set_ylabel("Number of residences",fontsize=60)
     ax.set_xlabel("Hours",fontsize=60)
     ax.set_title("Adoption percentage: "+str(adopt)+"%",fontsize=60)
-    ax.set_ylim(bottom=0,top=120)
+    ax.set_ylim(bottom=0,top=140)
 
 
     hatches = itertools.cycle(['/', ''])
@@ -154,7 +154,7 @@ def draw_barplot(df,groups,ax=None,adopt=90,rate=4800):
                    Patch(facecolor="white",edgecolor='black',
                          label="Individual optimization",hatch='')]
     # leg1 = ax.legend(handles=han1,ncol=1,prop={'size': 50},loc='center right')
-    ax.legend(handles=han1+han2,ncol=1,prop={'size': 50},loc='upper right')
+    ax.legend(handles=han1+han2,ncol=1,prop={'size': 60},loc='upper right')
     # ax.add_artist(leg1)
     return ax
     
