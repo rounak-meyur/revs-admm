@@ -342,6 +342,64 @@ def compare_method_flows(path,adopt,rate,graph,seed=[1234],
     return ax
 
 
+def boxplot_flow_ind(path,adopt,rate,graph,seed=[1234],
+                         start=11,end=23,shift=6,ax=None):
+    # Initialize data for pandas dataframe
+    data = {'loading':[],'hour':[]}
+    
+    # Fill in the dictionary for plot data
+    for j in seed:
+        # Get flows for individual optimization
+        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt"
+        p_ind = get_power_data(path+prefix)
+        f_ind = compute_flows(graph,p_ind)
+        for t in range(start,end+1):
+            hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+            for e in graph.edges:
+                str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                data['loading'].append(abs(f_ind[e][t])*100.0)
+                data['hour'].append(hr)
+    df = pd.DataFrame(data)
+    ax = sns.boxplot(x="hour", y="loading",
+                 data=df, color=sns.color_palette("Set2")[0], ax=ax)
+    
+    ax.tick_params(axis='y',labelsize=70)
+    ax.tick_params(axis='x',rotation=45,labelsize=70)
+    ax.set_ylabel("Line loading level (%)",fontsize=80)
+    ax.set_xlabel("Hours",fontsize=80)
+    return ax
+
+def boxplot_volt_ind(path,adopt,rate,graph,node_interest,seed=[1234],
+                         start=11,end=23,shift=6,ax=None):
+    # Initialize data for pandas dataframe
+    data = {'voltage':[],'hour':[]}
+    
+    # Fill in the dictionary for plot data
+    for j in seed:
+        # Get voltage for individual optimization
+        prefix = "indEV-"+str(adopt)+"-adopt"+str(int(rate))\
+            +"Watts-seed-"+str(j)+".txt" 
+        p_ind = get_power_data(path+prefix)
+        volt_ind = compute_voltage(graph, p_ind)
+        
+        for t in range(start,end+1):
+            for n in node_interest:
+                hr = str((t+shift-1)%24)+":00 - "+str((t+shift)%24)+":00"
+                data['voltage'].append(volt_ind[n][t])
+                data['hour'].append(hr)
+                
+    df = pd.DataFrame(data)
+    ax = sns.boxplot(x="hour", y="voltage",
+                 data=df, color=sns.color_palette("Set2")[1], ax=ax)
+    
+    ax.tick_params(axis='y',labelsize=70)
+    ax.tick_params(axis='x',rotation=45,labelsize=70)
+    ax.set_ylabel("Node voltage (p.u.)",fontsize=80)
+    ax.set_xlabel("Hours",fontsize=80)
+    return ax
+
+
 #%% Main Code
 # Some constant inputs
 sub = 121144
@@ -361,6 +419,30 @@ COST = np.roll(COST,-shft).tolist()
 dist = GetDistNet(distpath,sub)
 print("Loaded network and home data")
 
+#%% Only individual optimization results
+rate = 4800
+adopt = 90
+
+com = 2
+dirname = str(sub)+"-com-"+str(com)+"/"
+with open(workpath+"/input/"+str(sub)+"-com.txt",'r') as f:
+    lines = f.readlines()
+com_homes = [int(x) for x in lines[com-1].strip('\n').split(' ')]
+
+fig1 = plt.figure(figsize=(60,20))
+ax1 = fig1.add_subplot(1,1,1)
+ax1 = boxplot_volt_ind(outpath+dirname,adopt,rate,dist,com_homes,ax=ax1)
+fig1.savefig(f"{figpath}{sub}-com-{com}-adopt-{adopt}-rate-{rate}-ind-voltage.png",
+            bbox_inches='tight')
+
+
+fig2 = plt.figure(figsize=(60,20))
+ax2 = fig2.add_subplot(1,1,1)
+ax2 = boxplot_flow_ind(outpath+dirname,adopt,rate,dist,ax=ax2)
+fig2.savefig(f"{figpath}{sub}-com-{com}-adopt-{adopt}-rate-{rate}-ind-loading.png",
+            bbox_inches='tight')
+
+sys.exit(0)
 #%% Draw the network with community of residences
 for com in range(1,6):
     dirname = str(sub)+"-com-"+str(com)+"/"
