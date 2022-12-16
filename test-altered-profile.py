@@ -5,7 +5,7 @@ Created on Thu May  5 09:18:21 2022
 @author: rm5nz
 """
 
-import os,sys
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -13,17 +13,13 @@ import matplotlib.pyplot as plt
 
 
 workpath = os.getcwd()
-libpath = workpath + "/libs/"
 figpath = workpath + "/figs/"
 inppath = workpath + "/input/"
-grbpath = workpath + "/gurobi/"
-outpath = workpath + "/out/"
 
-sys.path.append(libpath)
-from pyExtractlib import get_home_load
+from extract import GetHomeLoad
 
 
-load = get_home_load(inppath+"121-home-load.csv")
+load = GetHomeLoad("./input", 121, 6)
 
 
 #%% Create the load profile

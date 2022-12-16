@@ -150,8 +150,8 @@ class REVS(unittest.TestCase):
             self, regionID = None, networkID = None, tariffID = None,
             ev_homes = None, **kwargs):
         # Get keyword arguments
-        adoption = kwargs.get("adoption", 90) * 1e-2
-        rating = kwargs.get("rating", 4.8)
+        adoption = kwargs.get("adoption", 90)
+        rating = kwargs.get("rating", 4800)
         capacity = kwargs.get("capacity", 20)
         initial = kwargs.get("initial_soc", 0.2)
         start = kwargs.get("start_time", 11)
@@ -176,13 +176,13 @@ class REVS(unittest.TestCase):
             )
         if not ev_homes:
             np.random.seed(int(seed))
-            num_choice = int(adoption * len(com))
+            num_choice = int(adoption * 1e-2 * len(com))
             ev_homes = np.random.choice(com, num_choice, replace=False)
         
         # Get the home data with EV charging parameters
         homes = get_homes_ev_param(
             all_homes, dist, ev_homes,
-            rating, capacity, initial, start, end)
+            rating*1e-3, capacity, initial, start, end)
         
         # save data for writing in output file
         save = kwargs.get("save_data", False)
@@ -314,7 +314,7 @@ class REVS(unittest.TestCase):
         # ---- Edit the title of the plot ----
         if file_name_sfx := kwargs.get('file_name_sfx'):
             if not to_file:
-                to_file = f"{self.netID}-com{self.com}-{self.optim}-results"
+                to_file = f"{self.netID}-com{self.com}-{self.optim}"
             to_file = f"{to_file}_{file_name_sfx}"
 
         if no_ax:

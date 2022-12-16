@@ -10,6 +10,9 @@ Description:
 
 from revs_fixture import REVS
 
+rating = 4800
+adoption = 90
+seed = 1234
 
 fx = REVS('runTest')
 fx.netID = 121144
@@ -25,7 +28,7 @@ fx.grb_dir = f"./gurobi/{fx.netID}-com{fx.com}/{fx.optim}"
 tariff, homes, dist, param_data = fx.read_inputs(
     networkID = 121144, 
     save_data=True,
-    rating = 3600,
+    rating = rating, adoption = adoption, seed = seed
     )
 fx.assertIsNotNone(tariff)
 fx.assertIsNotNone(homes)
@@ -48,6 +51,6 @@ fx.assertIsNotNone(soc_schedule)
 
 fx.plot_result(p_schedule, dist, **param_data, 
                figsize=(60,40), 
-               suptitle_sfx = "line loading and node voltages",
-               file_name_sfx = "flow_volt",
+               suptitle_sfx = f"rating={rating}Watts : adoption={adoption}%",
+               file_name_sfx = f"rate{rating}_adopt{adoption}_flow_volt",
                fontsize = 70, labelsize = 60, tick_labelsize = 40)
