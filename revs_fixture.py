@@ -3,12 +3,9 @@
 Created on Fri Feb  4 12:37:23 2022
 
 Author: Rounak Meyur
-Description: This compuutes the optimal schedule when each residence solves its
-individual optimization problem in a selfish manner.
-"""
 
-import logging
-logger = logging.getLogger(__name__)
+Description: Functions and classes to run REVS optimization methods 
+"""
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -60,19 +57,20 @@ def close_fig(fig, to_file=None, show=True, **kwargs):
     pass
 
 
-class REVS(unittest.TestCase):
-    def __init__(self, methodName: str = ...) -> None:
-        super().__init__(methodName)
+class REVS:
+    def __init__(self, **kwargs):
+        self.netID     = kwargs.get("networkID", 121144)
+        self.regID     = kwargs.get("regionID", 121)
+        self.com       = kwargs.get("comunityID", 2)
+        self.tariffID  = kwargs.get("tariffID", "DVP")
+        self.optim     = kwargs.get("optimizer_mode", "individual")
         
-        self.netID = 121144
-        self.regID = 121
-        self.com = 2
-        self.optim = "individual"
-        
-        self.data_path = "./input"
-        self.out_dir = "./out"
-        self.fig_dir = "./figs"
-        self.grb_dir = "./gurobi"
+        self.data_path = kwargs.get("data_path")
+        out_path = kwargs.get("out_path")
+        grb_path = kwargs.get("grb_path")
+        self.out_dir   = f"{out_path}/{self.netID}-com{self.com}/{self.optim}"
+        self.grb_dir   = f"{grb_path}/{self.netID}-com{self.com}/{self.optim}"
+        self.fig_dir   = kwargs.get("fig_path")
         
         pass
     
@@ -158,7 +156,6 @@ class REVS(unittest.TestCase):
         end = kwargs.get("end_time", 23)
         sh = kwargs.get("shift_time", 6)
         seed = kwargs.get("seed", 1234)
-        vset = kwargs.get("v0", 1.03)
         
         # Get the electricity tariff
         tariff = self.read_tariff(tariffID = tariffID, shift = sh)
@@ -185,29 +182,17 @@ class REVS(unittest.TestCase):
             rating*1e-3, capacity, initial, start, end)
         
         # save data for writing in output file
-        save = kwargs.get("save_data", False)
-        if save:
-            save_home_data = dict(
-                save_data = True,
-                adoption = int(adoption * 100),
-                rating = int(rating * 1000),
-                ev_homes = ev_homes,
-                community = com,
-                seed = seed,
-                shift = sh,
-                start = start,
-                end = end,
-                initial = initial,
-                vset = vset,
-                )
-            return tariff, homes, dist, save_home_data
-        
-        return tariff, homes, dist
+        save_home_data = dict(
+            ev_homes = ev_homes,
+            community = com
+            )
+        return tariff, homes, dist, save_home_data
     
     
-    def get_individual_optimal(self, tariff, homes, **kwargs):
+    def get_individual_optimal(
+            self, tariff, homes, 
+            save = False, **kwargs):
         # keyword arguments
-        save = kwargs.get("save_data", False)
         ev_homes = kwargs.get("ev_homes", None)
         adopt = kwargs.get("adoption", 90)
         rating = kwargs.get("rating", 4800)
@@ -237,12 +222,13 @@ class REVS(unittest.TestCase):
         return Pres, Pev, soc
     
     
-    def get_centralized_optimal(self, tariff, homes, dist, **kwargs):
+    def get_centralized_optimal(
+            self, tariff, homes, dist, 
+            save = False, **kwargs):
         
         vset = kwargs.get("v0", 1.03)
         vmin = kwargs.get("vmin", 0.90)
         vmax = kwargs.get("vmax", 1.05)
-        save = kwargs.get("save_data", False)
         ev_homes = kwargs.get("ev_homes", None)
         adopt = kwargs.get("adoption", 90)
         rating = kwargs.get("rating", 4800)
@@ -262,7 +248,9 @@ class REVS(unittest.TestCase):
             
         return Pres, Pev, soc
     
-    def get_distributed_optimal(self, tariff, homes, dist, **kwargs):
+    def get_distributed_optimal(
+            self, tariff, homes, dist, 
+            save = False, **kwargs):
         # get keyword arguments
         kappa = kwargs.get("kappa", 5.0)
         iter_max = kwargs.get("max_iterations", 15)
@@ -278,7 +266,6 @@ class REVS(unittest.TestCase):
             vset=vset, vlow=vlow, vhigh=vhigh
             )
         
-        save = kwargs.get("save_data", False)
         ev_homes = kwargs.get("ev_homes", None)
         adopt = kwargs.get("adoption", 90)
         rating = kwargs.get("rating", 4800)
@@ -297,7 +284,9 @@ class REVS(unittest.TestCase):
             ax = None, to_file=None, show=True, 
             plot_list = ["flow", "volt"], 
             **kwargs):
-        kwargs.setdefault('figsize', (50, 30))
+        figwidth = kwargs.get('figwidth', 50)
+        figheight = kwargs.get('figheight', 30)
+        kwargs.setdefault('figsize', (figwidth, figheight))
         fontsize = kwargs.get('fontsize', 30)
         do_return = kwargs.get('do_return', False)
         node_interest = kwargs.get("community", None)

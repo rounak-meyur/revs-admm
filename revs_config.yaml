@@ -1,0 +1,39 @@
+run_parameters: 
+    input_filepath:
+        data_path       : "./input"
+        out_path        : "./out"
+        fig_path        : "./figs"
+        grb_path        : "./gurobi"
+        regionID        : 121
+        networkID       : 121144
+        communityID     : 2
+        tariffID        : "DVP"
+        optimizer_mode  : "individual"
+    
+    input_parameters:
+        adoption    : 70
+        rating      : 4800
+        seed        : 1234
+        capacity    : 20
+        initial_soc : 0.2
+        start_time  : 11
+        end_time    : 23
+        shift_time  : 6
+
+    optimizer_parameters:
+        v0              : 1.03
+        vmin            : 0.90
+        vmax            : 1.05
+        max_iterations  : 15
+        kappa           : 5.0
+    
+    draw_parameters:
+        figwidth        : 60
+        figheight       : 40
+        fontsize        : 70
+        labelsize       : 60 
+        tick_labelsize  : 40
+
+init_parameters:
+    nodes           : 1
+    module          : "nssac"

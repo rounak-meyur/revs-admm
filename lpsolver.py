@@ -419,7 +419,12 @@ def objective_centralized(model, tariff, demand):
     N, T = demand.shape
     a = np.ones(shape=(N,))
     b = np.array(tariff)
-    model.setObjective(sum(b[j] * a @ demand[:, j] for j in range(T)))
+    version = grb.gurobi.version()
+    if version[0] == 10:
+        model.setObjective(a @ demand @ b)
+    else:
+        model.setObjective(
+            sum(b[j] * a @ demand[:, j] for j in range(T)))
     return
 
 def solve_residence(tariff, data, path):
