@@ -42,10 +42,10 @@ if fx.optim == "individual":
         tariff, homes, save = True, **opt_params)
 elif fx.optim == "centralized":
     p_schedule, ev_schedule, soc_schedule = fx.get_centralized_optimal(
-        tariff, homes, dist, **opt_params)
+        tariff, homes, dist, save=True, **opt_params)
 elif fx.optim == "distributed":
     p_schedule, ev_schedule, soc_schedule = fx.get_distributed_optimal(
-        tariff, homes, dist, **opt_params)
+        tariff, homes, dist, save=True, **opt_params)
 
 
 
